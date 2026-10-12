@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/di/providers.dart';
 import 'features/player/audio/audio_service_init.dart';
 import 'features/player/player_controller.dart';
 
@@ -23,12 +24,13 @@ Future<void> main() async {
     ),
   );
 
-  final audioHandler = await initSleepingAudioService();
+  final boot = await initSleepingAudioService();
 
   runApp(
     ProviderScope(
       overrides: [
-        audioHandlerProvider.overrideWithValue(audioHandler),
+        appDatabaseProvider.overrideWithValue(boot.db),
+        audioHandlerProvider.overrideWithValue(boot.handler),
       ],
       child: const SleepingRadioApp(),
     ),

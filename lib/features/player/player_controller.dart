@@ -58,4 +58,26 @@ class PlayerSessionNotifier extends Notifier<PlaybackSession> {
     int minutes = AppConstants.timerExtendMinutes,
   ]) =>
       _handler.extendSleepTimer(minutes);
+
+  Future<void> playBookChapter({
+    required String bookId,
+    required String chapterId,
+    required String bookTitle,
+    required String chapterTitle,
+    required String text,
+    required int startCharOffset,
+  }) async {
+    final settings = ref.read(settingsProvider).asData?.value;
+    await _handler.playBookChapter(
+      bookId: bookId,
+      chapterId: chapterId,
+      bookTitle: bookTitle,
+      chapterTitle: chapterTitle,
+      text: text,
+      startCharOffset: startCharOffset,
+      speechRate: settings?.speechRate ?? 1,
+    );
+  }
+
+  Future<void> loadDemo() => _handler.loadDemoTrack();
 }

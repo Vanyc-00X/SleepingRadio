@@ -4,12 +4,16 @@ class BookChapter {
     required this.title,
     required this.orderIndex,
     this.startOffset = 0,
+    this.content = '',
   });
 
   final String id;
   final String title;
   final int orderIndex;
   final int startOffset;
+  final String content;
+
+  int get length => content.length;
 }
 
 class BookProgress {
@@ -48,4 +52,39 @@ class Book {
   final BookProgress progress;
   final DateTime? importedAt;
   final DateTime? lastOpenedAt;
+
+  BookChapter? get currentChapter {
+    if (chapters.isEmpty) return null;
+    final id = progress.chapterId;
+    if (id == null) return chapters.first;
+    for (final chapter in chapters) {
+      if (chapter.id == id) return chapter;
+    }
+    return chapters.first;
+  }
+}
+
+/// Результат парсинга файла до сохранения в БД.
+class ParsedBook {
+  const ParsedBook({
+    required this.title,
+    required this.format,
+    this.author,
+    required this.chapters,
+  });
+
+  final String title;
+  final String? author;
+  final String format;
+  final List<ParsedChapter> chapters;
+}
+
+class ParsedChapter {
+  const ParsedChapter({
+    required this.title,
+    required this.content,
+  });
+
+  final String title;
+  final String content;
 }

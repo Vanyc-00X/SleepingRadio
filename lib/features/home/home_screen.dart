@@ -52,9 +52,13 @@ class HomeScreen extends ConsumerWidget {
                   title: session.title.isEmpty
                       ? 'Ночной демо-трек'
                       : session.title,
-                  subtitle: session.isPlaying
+                  subtitle: session.isBookMode
+                      ? (session.subtitle.isEmpty
+                            ? 'Книга · системный TTS'
+                            : session.subtitle)
+                      : session.isPlaying
                       ? 'Играет · откройте плеер'
-                      : 'Демо этапа 1 · таймер сна и фон',
+                      : 'Демо · таймер сна и фон',
                   playing: session.isPlaying,
                   onTap: () => context.go('/player'),
                   onPlay: () => ref.read(playerSessionProvider.notifier).toggle(),
@@ -68,23 +72,24 @@ class HomeScreen extends ConsumerWidget {
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.35,
-                    children: const [
+                    children: [
                       _ModeTile(
                         icon: Icons.menu_book_outlined,
                         label: 'Книга',
-                        hint: 'Этап 2',
+                        hint: 'Импорт fb2/epub',
+                        onTap: () => context.go('/library'),
                       ),
-                      _ModeTile(
+                      const _ModeTile(
                         icon: Icons.newspaper_outlined,
                         label: 'Новости',
                         hint: 'Этап 5',
                       ),
-                      _ModeTile(
+                      const _ModeTile(
                         icon: Icons.link_outlined,
                         label: 'Ссылка',
                         hint: 'Этап 4',
                       ),
-                      _ModeTile(
+                      const _ModeTile(
                         icon: Icons.podcasts_outlined,
                         label: 'Подкаст',
                         hint: 'Этап 7',
@@ -174,11 +179,13 @@ class _ModeTile extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.hint,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String hint;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -186,11 +193,12 @@ class _ModeTile extends StatelessWidget {
       color: AppColors.nightElevated,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$label — в разработке ($hint)')),
-          );
-        },
+        onTap: onTap ??
+            () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$label — в разработке ($hint)')),
+              );
+            },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),

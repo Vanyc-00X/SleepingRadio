@@ -129,6 +129,21 @@ class $UserSettingsRowsTable extends UserSettingsRows
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _booksReadOnlyMeta = const VerificationMeta(
+    'booksReadOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> booksReadOnly = GeneratedColumn<bool>(
+    'books_read_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("books_read_only" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -141,6 +156,7 @@ class $UserSettingsRowsTable extends UserSettingsRows
     newsTopicsCsv,
     useCloudAi,
     onboardingCompleted,
+    booksReadOnly,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -229,6 +245,15 @@ class $UserSettingsRowsTable extends UserSettingsRows
         ),
       );
     }
+    if (data.containsKey('books_read_only')) {
+      context.handle(
+        _booksReadOnlyMeta,
+        booksReadOnly.isAcceptableOrUnknown(
+          data['books_read_only']!,
+          _booksReadOnlyMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -278,6 +303,10 @@ class $UserSettingsRowsTable extends UserSettingsRows
         DriftSqlType.bool,
         data['${effectivePrefix}onboarding_completed'],
       )!,
+      booksReadOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}books_read_only'],
+      )!,
     );
   }
 
@@ -298,6 +327,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
   final String newsTopicsCsv;
   final bool useCloudAi;
   final bool onboardingCompleted;
+  final bool booksReadOnly;
   const UserSettingsRow({
     required this.id,
     required this.voiceId,
@@ -309,6 +339,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     required this.newsTopicsCsv,
     required this.useCloudAi,
     required this.onboardingCompleted,
+    required this.booksReadOnly,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -323,6 +354,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     map['news_topics_csv'] = Variable<String>(newsTopicsCsv);
     map['use_cloud_ai'] = Variable<bool>(useCloudAi);
     map['onboarding_completed'] = Variable<bool>(onboardingCompleted);
+    map['books_read_only'] = Variable<bool>(booksReadOnly);
     return map;
   }
 
@@ -338,6 +370,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       newsTopicsCsv: Value(newsTopicsCsv),
       useCloudAi: Value(useCloudAi),
       onboardingCompleted: Value(onboardingCompleted),
+      booksReadOnly: Value(booksReadOnly),
     );
   }
 
@@ -361,6 +394,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       onboardingCompleted: serializer.fromJson<bool>(
         json['onboardingCompleted'],
       ),
+      booksReadOnly: serializer.fromJson<bool>(json['booksReadOnly']),
     );
   }
   @override
@@ -377,6 +411,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       'newsTopicsCsv': serializer.toJson<String>(newsTopicsCsv),
       'useCloudAi': serializer.toJson<bool>(useCloudAi),
       'onboardingCompleted': serializer.toJson<bool>(onboardingCompleted),
+      'booksReadOnly': serializer.toJson<bool>(booksReadOnly),
     };
   }
 
@@ -391,6 +426,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     String? newsTopicsCsv,
     bool? useCloudAi,
     bool? onboardingCompleted,
+    bool? booksReadOnly,
   }) => UserSettingsRow(
     id: id ?? this.id,
     voiceId: voiceId ?? this.voiceId,
@@ -402,6 +438,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     newsTopicsCsv: newsTopicsCsv ?? this.newsTopicsCsv,
     useCloudAi: useCloudAi ?? this.useCloudAi,
     onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+    booksReadOnly: booksReadOnly ?? this.booksReadOnly,
   );
   UserSettingsRow copyWithCompanion(UserSettingsRowsCompanion data) {
     return UserSettingsRow(
@@ -429,6 +466,9 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
       onboardingCompleted: data.onboardingCompleted.present
           ? data.onboardingCompleted.value
           : this.onboardingCompleted,
+      booksReadOnly: data.booksReadOnly.present
+          ? data.booksReadOnly.value
+          : this.booksReadOnly,
     );
   }
 
@@ -444,7 +484,8 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
           ..write('cacheLimitGb: $cacheLimitGb, ')
           ..write('newsTopicsCsv: $newsTopicsCsv, ')
           ..write('useCloudAi: $useCloudAi, ')
-          ..write('onboardingCompleted: $onboardingCompleted')
+          ..write('onboardingCompleted: $onboardingCompleted, ')
+          ..write('booksReadOnly: $booksReadOnly')
           ..write(')'))
         .toString();
   }
@@ -461,6 +502,7 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
     newsTopicsCsv,
     useCloudAi,
     onboardingCompleted,
+    booksReadOnly,
   );
   @override
   bool operator ==(Object other) =>
@@ -475,7 +517,8 @@ class UserSettingsRow extends DataClass implements Insertable<UserSettingsRow> {
           other.cacheLimitGb == this.cacheLimitGb &&
           other.newsTopicsCsv == this.newsTopicsCsv &&
           other.useCloudAi == this.useCloudAi &&
-          other.onboardingCompleted == this.onboardingCompleted);
+          other.onboardingCompleted == this.onboardingCompleted &&
+          other.booksReadOnly == this.booksReadOnly);
 }
 
 class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
@@ -489,6 +532,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
   final Value<String> newsTopicsCsv;
   final Value<bool> useCloudAi;
   final Value<bool> onboardingCompleted;
+  final Value<bool> booksReadOnly;
   const UserSettingsRowsCompanion({
     this.id = const Value.absent(),
     this.voiceId = const Value.absent(),
@@ -500,6 +544,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
     this.newsTopicsCsv = const Value.absent(),
     this.useCloudAi = const Value.absent(),
     this.onboardingCompleted = const Value.absent(),
+    this.booksReadOnly = const Value.absent(),
   });
   UserSettingsRowsCompanion.insert({
     this.id = const Value.absent(),
@@ -512,6 +557,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
     this.newsTopicsCsv = const Value.absent(),
     this.useCloudAi = const Value.absent(),
     this.onboardingCompleted = const Value.absent(),
+    this.booksReadOnly = const Value.absent(),
   });
   static Insertable<UserSettingsRow> custom({
     Expression<int>? id,
@@ -524,6 +570,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
     Expression<String>? newsTopicsCsv,
     Expression<bool>? useCloudAi,
     Expression<bool>? onboardingCompleted,
+    Expression<bool>? booksReadOnly,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -538,6 +585,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
       if (useCloudAi != null) 'use_cloud_ai': useCloudAi,
       if (onboardingCompleted != null)
         'onboarding_completed': onboardingCompleted,
+      if (booksReadOnly != null) 'books_read_only': booksReadOnly,
     });
   }
 
@@ -552,6 +600,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
     Value<String>? newsTopicsCsv,
     Value<bool>? useCloudAi,
     Value<bool>? onboardingCompleted,
+    Value<bool>? booksReadOnly,
   }) {
     return UserSettingsRowsCompanion(
       id: id ?? this.id,
@@ -564,6 +613,7 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
       newsTopicsCsv: newsTopicsCsv ?? this.newsTopicsCsv,
       useCloudAi: useCloudAi ?? this.useCloudAi,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      booksReadOnly: booksReadOnly ?? this.booksReadOnly,
     );
   }
 
@@ -600,6 +650,9 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
     if (onboardingCompleted.present) {
       map['onboarding_completed'] = Variable<bool>(onboardingCompleted.value);
     }
+    if (booksReadOnly.present) {
+      map['books_read_only'] = Variable<bool>(booksReadOnly.value);
+    }
     return map;
   }
 
@@ -615,7 +668,8 @@ class UserSettingsRowsCompanion extends UpdateCompanion<UserSettingsRow> {
           ..write('cacheLimitGb: $cacheLimitGb, ')
           ..write('newsTopicsCsv: $newsTopicsCsv, ')
           ..write('useCloudAi: $useCloudAi, ')
-          ..write('onboardingCompleted: $onboardingCompleted')
+          ..write('onboardingCompleted: $onboardingCompleted, ')
+          ..write('booksReadOnly: $booksReadOnly')
           ..write(')'))
         .toString();
   }
@@ -1336,6 +1390,18 @@ class $BookChaptersTable extends BookChapters
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
+  @override
+  late final GeneratedColumn<String> content = GeneratedColumn<String>(
+    'content',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1343,6 +1409,7 @@ class $BookChaptersTable extends BookChapters
     title,
     orderIndex,
     startOffset,
+    content,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1394,6 +1461,12 @@ class $BookChaptersTable extends BookChapters
         ),
       );
     }
+    if (data.containsKey('content')) {
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
+    }
     return context;
   }
 
@@ -1423,6 +1496,10 @@ class $BookChaptersTable extends BookChapters
         DriftSqlType.int,
         data['${effectivePrefix}start_offset'],
       )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      )!,
     );
   }
 
@@ -1438,12 +1515,14 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
   final String title;
   final int orderIndex;
   final int startOffset;
+  final String content;
   const BookChapter({
     required this.id,
     required this.bookId,
     required this.title,
     required this.orderIndex,
     required this.startOffset,
+    required this.content,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1453,6 +1532,7 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
     map['title'] = Variable<String>(title);
     map['order_index'] = Variable<int>(orderIndex);
     map['start_offset'] = Variable<int>(startOffset);
+    map['content'] = Variable<String>(content);
     return map;
   }
 
@@ -1463,6 +1543,7 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
       title: Value(title),
       orderIndex: Value(orderIndex),
       startOffset: Value(startOffset),
+      content: Value(content),
     );
   }
 
@@ -1477,6 +1558,7 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
       title: serializer.fromJson<String>(json['title']),
       orderIndex: serializer.fromJson<int>(json['orderIndex']),
       startOffset: serializer.fromJson<int>(json['startOffset']),
+      content: serializer.fromJson<String>(json['content']),
     );
   }
   @override
@@ -1488,6 +1570,7 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
       'title': serializer.toJson<String>(title),
       'orderIndex': serializer.toJson<int>(orderIndex),
       'startOffset': serializer.toJson<int>(startOffset),
+      'content': serializer.toJson<String>(content),
     };
   }
 
@@ -1497,12 +1580,14 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
     String? title,
     int? orderIndex,
     int? startOffset,
+    String? content,
   }) => BookChapter(
     id: id ?? this.id,
     bookId: bookId ?? this.bookId,
     title: title ?? this.title,
     orderIndex: orderIndex ?? this.orderIndex,
     startOffset: startOffset ?? this.startOffset,
+    content: content ?? this.content,
   );
   BookChapter copyWithCompanion(BookChaptersCompanion data) {
     return BookChapter(
@@ -1515,6 +1600,7 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
       startOffset: data.startOffset.present
           ? data.startOffset.value
           : this.startOffset,
+      content: data.content.present ? data.content.value : this.content,
     );
   }
 
@@ -1525,13 +1611,15 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
           ..write('bookId: $bookId, ')
           ..write('title: $title, ')
           ..write('orderIndex: $orderIndex, ')
-          ..write('startOffset: $startOffset')
+          ..write('startOffset: $startOffset, ')
+          ..write('content: $content')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, bookId, title, orderIndex, startOffset);
+  int get hashCode =>
+      Object.hash(id, bookId, title, orderIndex, startOffset, content);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1540,7 +1628,8 @@ class BookChapter extends DataClass implements Insertable<BookChapter> {
           other.bookId == this.bookId &&
           other.title == this.title &&
           other.orderIndex == this.orderIndex &&
-          other.startOffset == this.startOffset);
+          other.startOffset == this.startOffset &&
+          other.content == this.content);
 }
 
 class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
@@ -1549,6 +1638,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
   final Value<String> title;
   final Value<int> orderIndex;
   final Value<int> startOffset;
+  final Value<String> content;
   final Value<int> rowid;
   const BookChaptersCompanion({
     this.id = const Value.absent(),
@@ -1556,6 +1646,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
     this.title = const Value.absent(),
     this.orderIndex = const Value.absent(),
     this.startOffset = const Value.absent(),
+    this.content = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BookChaptersCompanion.insert({
@@ -1564,6 +1655,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
     required String title,
     required int orderIndex,
     this.startOffset = const Value.absent(),
+    this.content = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        bookId = Value(bookId),
@@ -1575,6 +1667,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
     Expression<String>? title,
     Expression<int>? orderIndex,
     Expression<int>? startOffset,
+    Expression<String>? content,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1583,6 +1676,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
       if (title != null) 'title': title,
       if (orderIndex != null) 'order_index': orderIndex,
       if (startOffset != null) 'start_offset': startOffset,
+      if (content != null) 'content': content,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1593,6 +1687,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
     Value<String>? title,
     Value<int>? orderIndex,
     Value<int>? startOffset,
+    Value<String>? content,
     Value<int>? rowid,
   }) {
     return BookChaptersCompanion(
@@ -1601,6 +1696,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
       title: title ?? this.title,
       orderIndex: orderIndex ?? this.orderIndex,
       startOffset: startOffset ?? this.startOffset,
+      content: content ?? this.content,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1623,6 +1719,9 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
     if (startOffset.present) {
       map['start_offset'] = Variable<int>(startOffset.value);
     }
+    if (content.present) {
+      map['content'] = Variable<String>(content.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1637,6 +1736,7 @@ class BookChaptersCompanion extends UpdateCompanion<BookChapter> {
           ..write('title: $title, ')
           ..write('orderIndex: $orderIndex, ')
           ..write('startOffset: $startOffset, ')
+          ..write('content: $content, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3130,6 +3230,7 @@ typedef $$UserSettingsRowsTableCreateCompanionBuilder =
       Value<String> newsTopicsCsv,
       Value<bool> useCloudAi,
       Value<bool> onboardingCompleted,
+      Value<bool> booksReadOnly,
     });
 typedef $$UserSettingsRowsTableUpdateCompanionBuilder =
     UserSettingsRowsCompanion Function({
@@ -3143,6 +3244,7 @@ typedef $$UserSettingsRowsTableUpdateCompanionBuilder =
       Value<String> newsTopicsCsv,
       Value<bool> useCloudAi,
       Value<bool> onboardingCompleted,
+      Value<bool> booksReadOnly,
     });
 
 class $$UserSettingsRowsTableFilterComposer
@@ -3201,6 +3303,11 @@ class $$UserSettingsRowsTableFilterComposer
 
   ColumnFilters<bool> get onboardingCompleted => $composableBuilder(
     column: $table.onboardingCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get booksReadOnly => $composableBuilder(
+    column: $table.booksReadOnly,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3263,6 +3370,11 @@ class $$UserSettingsRowsTableOrderingComposer
     column: $table.onboardingCompleted,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get booksReadOnly => $composableBuilder(
+    column: $table.booksReadOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$UserSettingsRowsTableAnnotationComposer
@@ -3317,6 +3429,11 @@ class $$UserSettingsRowsTableAnnotationComposer
     column: $table.onboardingCompleted,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get booksReadOnly => $composableBuilder(
+    column: $table.booksReadOnly,
+    builder: (column) => column,
+  );
 }
 
 class $$UserSettingsRowsTableTableManager
@@ -3366,6 +3483,7 @@ class $$UserSettingsRowsTableTableManager
                 Value<String> newsTopicsCsv = const Value.absent(),
                 Value<bool> useCloudAi = const Value.absent(),
                 Value<bool> onboardingCompleted = const Value.absent(),
+                Value<bool> booksReadOnly = const Value.absent(),
               }) => UserSettingsRowsCompanion(
                 id: id,
                 voiceId: voiceId,
@@ -3377,6 +3495,7 @@ class $$UserSettingsRowsTableTableManager
                 newsTopicsCsv: newsTopicsCsv,
                 useCloudAi: useCloudAi,
                 onboardingCompleted: onboardingCompleted,
+                booksReadOnly: booksReadOnly,
               ),
           createCompanionCallback:
               ({
@@ -3390,6 +3509,7 @@ class $$UserSettingsRowsTableTableManager
                 Value<String> newsTopicsCsv = const Value.absent(),
                 Value<bool> useCloudAi = const Value.absent(),
                 Value<bool> onboardingCompleted = const Value.absent(),
+                Value<bool> booksReadOnly = const Value.absent(),
               }) => UserSettingsRowsCompanion.insert(
                 id: id,
                 voiceId: voiceId,
@@ -3401,6 +3521,7 @@ class $$UserSettingsRowsTableTableManager
                 newsTopicsCsv: newsTopicsCsv,
                 useCloudAi: useCloudAi,
                 onboardingCompleted: onboardingCompleted,
+                booksReadOnly: booksReadOnly,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -3765,6 +3886,7 @@ typedef $$BookChaptersTableCreateCompanionBuilder =
       required String title,
       required int orderIndex,
       Value<int> startOffset,
+      Value<String> content,
       Value<int> rowid,
     });
 typedef $$BookChaptersTableUpdateCompanionBuilder =
@@ -3774,6 +3896,7 @@ typedef $$BookChaptersTableUpdateCompanionBuilder =
       Value<String> title,
       Value<int> orderIndex,
       Value<int> startOffset,
+      Value<String> content,
       Value<int> rowid,
     });
 
@@ -3808,6 +3931,11 @@ class $$BookChaptersTableFilterComposer
 
   ColumnFilters<int> get startOffset => $composableBuilder(
     column: $table.startOffset,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3845,6 +3973,11 @@ class $$BookChaptersTableOrderingComposer
     column: $table.startOffset,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BookChaptersTableAnnotationComposer
@@ -3874,6 +4007,9 @@ class $$BookChaptersTableAnnotationComposer
     column: $table.startOffset,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
 }
 
 class $$BookChaptersTableTableManager
@@ -3912,6 +4048,7 @@ class $$BookChaptersTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<int> orderIndex = const Value.absent(),
                 Value<int> startOffset = const Value.absent(),
+                Value<String> content = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookChaptersCompanion(
                 id: id,
@@ -3919,6 +4056,7 @@ class $$BookChaptersTableTableManager
                 title: title,
                 orderIndex: orderIndex,
                 startOffset: startOffset,
+                content: content,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3928,6 +4066,7 @@ class $$BookChaptersTableTableManager
                 required String title,
                 required int orderIndex,
                 Value<int> startOffset = const Value.absent(),
+                Value<String> content = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookChaptersCompanion.insert(
                 id: id,
@@ -3935,6 +4074,7 @@ class $$BookChaptersTableTableManager
                 title: title,
                 orderIndex: orderIndex,
                 startOffset: startOffset,
+                content: content,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

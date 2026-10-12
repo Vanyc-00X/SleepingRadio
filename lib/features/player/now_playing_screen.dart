@@ -47,6 +47,8 @@ class NowPlayingScreen extends ConsumerWidget {
                 Text(
                   session.state == PlayerState.fadingOut
                       ? 'Засыпание… звук затихает'
+                      : session.subtitle.isNotEmpty
+                      ? session.subtitle
                       : AppConstants.appNameShort,
                   style: textTheme.bodyMedium,
                   textAlign: TextAlign.center,

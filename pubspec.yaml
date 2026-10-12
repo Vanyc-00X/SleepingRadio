@@ -48,6 +48,10 @@ dependencies:
   just_audio: ^0.10.6
   audio_service: ^0.18.19
   audio_session: ^0.2.4
+  file_picker: ^13.1.0
+  epubx: ^4.0.0
+  xml: ^6.6.1
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:

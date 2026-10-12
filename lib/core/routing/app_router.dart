@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/books/book_detail_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/player/now_playing_screen.dart';
@@ -52,6 +53,14 @@ GoRouter createAppRouter() {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/book/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return BookDetailScreen(bookId: id);
+        },
       ),
     ],
   );

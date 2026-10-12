@@ -26,6 +26,10 @@ class PlaybackSession {
     this.playUntilEnd = false,
     this.state = PlayerState.idle,
     this.title = '',
+    this.subtitle = '',
+    this.bookId,
+    this.chapterId,
+    this.isBookMode = false,
   });
 
   final String? currentEpisodeId;
@@ -36,6 +40,10 @@ class PlaybackSession {
   final bool playUntilEnd;
   final PlayerState state;
   final String title;
+  final String subtitle;
+  final String? bookId;
+  final String? chapterId;
+  final bool isBookMode;
 
   bool get isPlaying =>
       state == PlayerState.playing || state == PlayerState.fadingOut;
@@ -59,6 +67,10 @@ class PlaybackSession {
     bool? playUntilEnd,
     PlayerState? state,
     String? title,
+    String? subtitle,
+    String? bookId,
+    String? chapterId,
+    bool? isBookMode,
   }) {
     return PlaybackSession(
       currentEpisodeId: currentEpisodeId ?? this.currentEpisodeId,
@@ -71,6 +83,10 @@ class PlaybackSession {
       playUntilEnd: playUntilEnd ?? this.playUntilEnd,
       state: state ?? this.state,
       title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      bookId: bookId ?? this.bookId,
+      chapterId: chapterId ?? this.chapterId,
+      isBookMode: isBookMode ?? this.isBookMode,
     );
   }
 }

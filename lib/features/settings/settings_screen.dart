@@ -115,6 +115,21 @@ class SettingsScreen extends ConsumerWidget {
               }).toList(),
             ),
             const Divider(height: 32),
+            _SectionTitle('Книги'),
+            SwitchListTile(
+              value: settings.booksReadOnly,
+              activeThumbColor: AppColors.amber,
+              title: const Text('Только чтение'),
+              subtitle: const Text(
+                'Без комментариев ИИ к книгам (по умолчанию включено)',
+              ),
+              onChanged: (value) {
+                ref
+                    .read(settingsProvider.notifier)
+                    .updateSettings((s) => s.copyWith(booksReadOnly: value));
+              },
+            ),
+            const Divider(height: 32),
             _SectionTitle('Кэш и сеть'),
             SwitchListTile(
               value: settings.useCloudAi,
@@ -152,7 +167,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Этап 0: настройки сохраняются локально в Drift/SQLite.',
+              'Настройки сохраняются локально. Озвучка книг сейчас — системный TTS (этап 3 — облачные голоса).',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: AppColors.mist,
               ),

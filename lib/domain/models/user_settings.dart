@@ -12,6 +12,7 @@ class UserSettings {
     this.newsTopics = const [NewsTopic.technology, NewsTopic.science],
     this.useCloudAi = true,
     this.onboardingCompleted = false,
+    this.booksReadOnly = true,
   });
 
   final String voiceId;
@@ -23,6 +24,7 @@ class UserSettings {
   final List<NewsTopic> newsTopics;
   final bool useCloudAi;
   final bool onboardingCompleted;
+  final bool booksReadOnly;
 
   UserSettings copyWith({
     String? voiceId,
@@ -34,6 +36,7 @@ class UserSettings {
     List<NewsTopic>? newsTopics,
     bool? useCloudAi,
     bool? onboardingCompleted,
+    bool? booksReadOnly,
   }) {
     return UserSettings(
       voiceId: voiceId ?? this.voiceId,
@@ -45,6 +48,7 @@ class UserSettings {
       newsTopics: newsTopics ?? this.newsTopics,
       useCloudAi: useCloudAi ?? this.useCloudAi,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      booksReadOnly: booksReadOnly ?? this.booksReadOnly,
     );
   }
 }

@@ -19,6 +19,8 @@ class UserSettingsRows extends Table {
   BoolColumn get useCloudAi => boolean().withDefault(const Constant(true))();
   BoolColumn get onboardingCompleted =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get booksReadOnly =>
+      boolean().withDefault(const Constant(true))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -47,6 +49,7 @@ class BookChapters extends Table {
   TextColumn get title => text()();
   IntColumn get orderIndex => integer()();
   IntColumn get startOffset => integer().withDefault(const Constant(0))();
+  TextColumn get content => text().withDefault(const Constant(''))();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -109,7 +112,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(bookChapters, bookChapters.content);
+        await m.addColumn(userSettingsRows, userSettingsRows.booksReadOnly);
+      }
+    },
+  );
 
   static QueryExecutor _openConnection() {
     return driftDatabase(name: 'sleeping_radio');

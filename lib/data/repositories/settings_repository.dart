@@ -41,6 +41,7 @@ class SettingsRepository {
             ),
             useCloudAi: Value(settings.useCloudAi),
             onboardingCompleted: Value(settings.onboardingCompleted),
+            booksReadOnly: Value(settings.booksReadOnly),
           ),
         );
   }
@@ -64,6 +65,7 @@ class SettingsRepository {
           : topics,
       useCloudAi: row.useCloudAi,
       onboardingCompleted: row.onboardingCompleted,
+      booksReadOnly: row.booksReadOnly,
     );
   }
 }
