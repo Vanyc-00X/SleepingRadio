@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
+import '../player/player_controller.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
+    final session = ref.watch(playerSessionProvider);
 
     return Scaffold(
       body: Container(
@@ -45,8 +48,16 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 36),
                 Text('Продолжить', style: textTheme.titleMedium),
                 const SizedBox(height: 12),
-                _ContinuePlaceholder(
+                _ContinueCard(
+                  title: session.title.isEmpty
+                      ? 'Ночной демо-трек'
+                      : session.title,
+                  subtitle: session.isPlaying
+                      ? 'Играет · откройте плеер'
+                      : 'Демо этапа 1 · таймер сна и фон',
+                  playing: session.isPlaying,
                   onTap: () => context.go('/player'),
+                  onPlay: () => ref.read(playerSessionProvider.notifier).toggle(),
                 ),
                 const SizedBox(height: 36),
                 Text('Быстрый старт', style: textTheme.titleMedium),
@@ -90,10 +101,20 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _ContinuePlaceholder extends StatelessWidget {
-  const _ContinuePlaceholder({required this.onTap});
+class _ContinueCard extends StatelessWidget {
+  const _ContinueCard({
+    required this.title,
+    required this.subtitle,
+    required this.playing,
+    required this.onTap,
+    required this.onPlay,
+  });
 
+  final String title;
+  final String subtitle;
+  final bool playing;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -121,13 +142,10 @@ class _ContinuePlaceholder extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Пока нечего продолжать',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text(title, style: Theme.of(context).textTheme.titleSmall),
                     const SizedBox(height: 4),
                     Text(
-                      'Импорт книг и выпуски появятся после этапов 2–5',
+                      subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.mist,
                       ),
@@ -135,7 +153,14 @@ class _ContinuePlaceholder extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.mist),
+              IconButton.filled(
+                onPressed: onPlay,
+                style: IconButton.styleFrom(
+                  backgroundColor: AppColors.amber,
+                  foregroundColor: AppColors.night,
+                ),
+                icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+              ),
             ],
           ),
         ),

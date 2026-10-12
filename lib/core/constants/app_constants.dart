@@ -5,7 +5,9 @@ abstract final class AppConstants {
   static const List<int> timerPresetsMinutes = [15, 30, 45, 60, 90];
   static const int fadeOutSecondsMin = 30;
   static const int fadeOutSecondsMax = 60;
+  static const int fadeOutSecondsDefault = 45;
   static const int timerExtendMinutes = 15;
+  static const int seekStepSeconds = 15;
 
   static const double speechRateMin = 0.8;
   static const double speechRateMax = 1.5;

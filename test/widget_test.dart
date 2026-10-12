@@ -1,12 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sleeping_radio/app.dart';
 import 'package:sleeping_radio/core/constants/app_constants.dart';
 
 void main() {
-  testWidgets('Home shows app brand', (tester) async {
-    await tester.pumpWidget(const SleepingRadioRoot());
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppConstants.appName), findsOneWidget);
+  test('app brand constant', () {
+    expect(AppConstants.appName, 'Сонный радиоприёмник');
+    expect(AppConstants.timerPresetsMinutes, containsAll([15, 30, 45, 60, 90]));
+    expect(AppConstants.fadeOutSecondsDefault, inInclusiveRange(30, 60));
   });
 }

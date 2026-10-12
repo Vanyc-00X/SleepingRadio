@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/constants/app_constants.dart';
@@ -25,15 +24,5 @@ class _SleepingRadioAppState extends State<SleepingRadioApp> {
       themeMode: ThemeMode.dark,
       routerConfig: _router,
     );
-  }
-}
-
-/// Kept for Riverpod scope at the root without forcing ConsumerWidget here.
-class SleepingRadioRoot extends StatelessWidget {
-  const SleepingRadioRoot({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const ProviderScope(child: SleepingRadioApp());
   }
 }
