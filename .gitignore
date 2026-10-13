@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local voice clones / private samples — do not publish
+/assets/voices/
+
+# Local env / secrets
+.env
+*.pem
+*.jks
+key.properties

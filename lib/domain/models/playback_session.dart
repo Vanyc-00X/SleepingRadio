@@ -69,7 +69,9 @@ class PlaybackSession {
     String? title,
     String? subtitle,
     String? bookId,
+    bool clearBookId = false,
     String? chapterId,
+    bool clearChapterId = false,
     bool? isBookMode,
   }) {
     return PlaybackSession(
@@ -84,8 +86,8 @@ class PlaybackSession {
       state: state ?? this.state,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
-      bookId: bookId ?? this.bookId,
-      chapterId: chapterId ?? this.chapterId,
+      bookId: clearBookId ? null : (bookId ?? this.bookId),
+      chapterId: clearChapterId ? null : (chapterId ?? this.chapterId),
       isBookMode: isBookMode ?? this.isBookMode,
     );
   }

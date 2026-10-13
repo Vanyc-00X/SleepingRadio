@@ -47,6 +47,10 @@ class NowPlayingScreen extends ConsumerWidget {
                 Text(
                   session.state == PlayerState.fadingOut
                       ? 'Засыпание… звук затихает'
+                      : session.isBookMode
+                      ? (session.subtitle.isNotEmpty
+                            ? '${session.subtitle} · TTS'
+                            : 'Озвучка главы')
                       : session.subtitle.isNotEmpty
                       ? session.subtitle
                       : AppConstants.appNameShort,
@@ -74,27 +78,73 @@ class NowPlayingScreen extends ConsumerWidget {
   }
 }
 
-class _Artwork extends StatelessWidget {
+class _Artwork extends StatefulWidget {
   const _Artwork({required this.fading});
 
   final bool fading;
 
   @override
+  State<_Artwork> createState() => _ArtworkState();
+}
+
+class _ArtworkState extends State<_Artwork>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 600),
-      opacity: fading ? 0.55 : 1,
-      child: Container(
-        width: 180,
-        height: 180,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.nightSoft,
-          border: Border.all(
-            color: AppColors.amber.withValues(alpha: 0.25),
-            width: 2,
-          ),
-        ),
+      opacity: widget.fading ? 0.55 : 1,
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, child) {
+          final t = Curves.easeInOut.transform(_pulse.value);
+          return Container(
+            width: 188,
+            height: 188,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Color.lerp(
+                    const Color(0xFF243049),
+                    const Color(0xFF2C3854),
+                    t,
+                  )!,
+                  AppColors.nightSoft,
+                ],
+              ),
+              border: Border.all(
+                color: AppColors.amber.withValues(alpha: 0.22 + t * 0.12),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.amber.withValues(alpha: 0.08 + t * 0.06),
+                  blurRadius: 28 + t * 12,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: child,
+          );
+        },
         child: const Icon(
           Icons.nightlight_round,
           size: 72,
@@ -214,34 +264,47 @@ class _TransportControls extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        IconButton(
-          onPressed: () =>
-              notifier.seekBy(const Duration(seconds: -AppConstants.seekStepSeconds)),
-          iconSize: 36,
-          icon: const Icon(Icons.replay),
-          color: AppColors.mist,
-          tooltip: '-${AppConstants.seekStepSeconds} с',
-        ),
-        const SizedBox(width: 16),
-        FilledButton(
-          onPressed: notifier.toggle,
-          style: FilledButton.styleFrom(
-            shape: const CircleBorder(),
-            padding: const EdgeInsets.all(24),
-          ),
-          child: Icon(
-            session.isPlaying ? Icons.pause : Icons.play_arrow,
-            size: 44,
+        Semantics(
+          button: true,
+          label: 'Назад ${AppConstants.seekStepSeconds} секунд',
+          child: IconButton(
+            onPressed: () => notifier.seekBy(
+              const Duration(seconds: -AppConstants.seekStepSeconds),
+            ),
+            iconSize: 38,
+            icon: const Icon(Icons.replay_10),
+            color: AppColors.mist,
           ),
         ),
-        const SizedBox(width: 16),
-        IconButton(
-          onPressed: () =>
-              notifier.seekBy(const Duration(seconds: AppConstants.seekStepSeconds)),
-          iconSize: 36,
-          icon: const Icon(Icons.forward),
-          color: AppColors.mist,
-          tooltip: '+${AppConstants.seekStepSeconds} с',
+        const SizedBox(width: 18),
+        Semantics(
+          button: true,
+          label: session.isPlaying ? 'Пауза' : 'Играть',
+          child: FilledButton(
+            onPressed: notifier.toggle,
+            style: FilledButton.styleFrom(
+              shape: const CircleBorder(),
+              padding: const EdgeInsets.all(26),
+              elevation: 0,
+            ),
+            child: Icon(
+              session.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 46,
+            ),
+          ),
+        ),
+        const SizedBox(width: 18),
+        Semantics(
+          button: true,
+          label: 'Вперёд ${AppConstants.seekStepSeconds} секунд',
+          child: IconButton(
+            onPressed: () => notifier.seekBy(
+              const Duration(seconds: AppConstants.seekStepSeconds),
+            ),
+            iconSize: 38,
+            icon: const Icon(Icons.forward_10),
+            color: AppColors.mist,
+          ),
         ),
       ],
     );

@@ -1,14 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import 'app.dart';
-import 'core/di/providers.dart';
-import 'features/player/audio/audio_service_init.dart';
-import 'features/player/player_controller.dart';
+import 'bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Не блокируем UI, если шрифты не скачались.
+  GoogleFonts.config.allowRuntimeFetching = true;
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -24,15 +26,9 @@ Future<void> main() async {
     ),
   );
 
-  final boot = await initSleepingAudioService();
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(boot.db),
-        audioHandlerProvider.overrideWithValue(boot.handler),
-      ],
-      child: const SleepingRadioApp(),
-    ),
+  // Важно: runApp сразу — иначе при ошибке/зависании init будет белый экран.
+  runZonedGuarded(
+    () => runApp(const SleepingRadioBootstrap()),
+    (error, stack) => debugPrint('Uncaught: $error\n$stack'),
   );
 }

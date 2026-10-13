@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_constants.dart';
+import '../../core/di/providers.dart';
 import '../../core/theme/app_colors.dart';
 import '../player/player_controller.dart';
 
@@ -13,6 +14,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final session = ref.watch(playerSessionProvider);
+    final historyAsync = ref.watch(recentHistoryProvider);
+    final recent = historyAsync.asData?.value.take(3).toList() ?? const [];
 
     return Scaffold(
       body: Container(
@@ -29,76 +32,156 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppConstants.appName,
-                  style: textTheme.headlineMedium?.copyWith(
-                    color: AppColors.moon,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            children: [
+              Text(
+                AppConstants.appName,
+                style: textTheme.headlineMedium?.copyWith(
+                  color: AppColors.moon,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Лёг вечером → выбрал источник → спокойный голос → сон',
+                style: textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 28),
+              Text('Продолжить', style: textTheme.titleMedium),
+              const SizedBox(height: 12),
+              _ContinueCard(
+                title: session.title.isEmpty
+                    ? 'Ночной демо-трек'
+                    : session.title,
+                subtitle: session.isBookMode
+                    ? (session.subtitle.isEmpty
+                          ? 'Книга · системный TTS'
+                          : session.subtitle)
+                    : session.isPlaying
+                    ? 'Играет · откройте плеер'
+                    : 'Демо · таймер сна и фон',
+                playing: session.isPlaying,
+                onTap: () => context.go('/player'),
+                onPlay: () =>
+                    ref.read(playerSessionProvider.notifier).toggle(),
+              ),
+              const SizedBox(height: 28),
+              Text('Быстрый старт', style: textTheme.titleMedium),
+              const SizedBox(height: 12),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 1.35,
+                children: [
+                  _ModeTile(
+                    icon: Icons.menu_book_outlined,
+                    label: 'Книга',
+                    hint: 'fb2 · epub · txt',
+                    onTap: () => context.go('/library'),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Лёг вечером → выбрал источник → спокойный голос → сон',
-                  style: textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 36),
-                Text('Продолжить', style: textTheme.titleMedium),
-                const SizedBox(height: 12),
-                _ContinueCard(
-                  title: session.title.isEmpty
-                      ? 'Ночной демо-трек'
-                      : session.title,
-                  subtitle: session.isBookMode
-                      ? (session.subtitle.isEmpty
-                            ? 'Книга · системный TTS'
-                            : session.subtitle)
-                      : session.isPlaying
-                      ? 'Играет · откройте плеер'
-                      : 'Демо · таймер сна и фон',
-                  playing: session.isPlaying,
-                  onTap: () => context.go('/player'),
-                  onPlay: () => ref.read(playerSessionProvider.notifier).toggle(),
-                ),
-                const SizedBox(height: 36),
-                Text('Быстрый старт', style: textTheme.titleMedium),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.35,
+                  _ModeTile(
+                    icon: Icons.newspaper_outlined,
+                    label: 'Новости',
+                    hint: 'Сводка + комментарий',
+                    onTap: () => context.push('/news'),
+                  ),
+                  _ModeTile(
+                    icon: Icons.link_outlined,
+                    label: 'Ссылка',
+                    hint: 'URL → голос',
+                    onTap: () => context.push('/link'),
+                  ),
+                  _ModeTile(
+                    icon: Icons.podcasts_outlined,
+                    label: 'Подкаст',
+                    hint: 'Собрать выпуск',
+                    onTap: () => context.push('/podcast'),
+                  ),
+                ],
+              ),
+              Builder(
+                builder: (context) {
+                  final recommendations = ref.watch(
+                    topicRecommendationsProvider,
+                  );
+                  if (recommendations.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ModeTile(
-                        icon: Icons.menu_book_outlined,
-                        label: 'Книга',
-                        hint: 'Импорт fb2/epub',
-                        onTap: () => context.go('/library'),
-                      ),
-                      const _ModeTile(
-                        icon: Icons.newspaper_outlined,
-                        label: 'Новости',
-                        hint: 'Этап 5',
-                      ),
-                      const _ModeTile(
-                        icon: Icons.link_outlined,
-                        label: 'Ссылка',
-                        hint: 'Этап 4',
-                      ),
-                      const _ModeTile(
-                        icon: Icons.podcasts_outlined,
-                        label: 'Подкаст',
-                        hint: 'Этап 7',
+                      const SizedBox(height: 28),
+                      Text('Вам может подойти', style: textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      ...recommendations.map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: AppColors.nightElevated,
+                            borderRadius: BorderRadius.circular(14),
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.auto_awesome,
+                                color: AppColors.amber,
+                              ),
+                              title: Text(item.topic.labelRu),
+                              subtitle: Text(item.reason),
+                              onTap: () async {
+                                final current =
+                                    ref.read(settingsProvider).asData?.value;
+                                if (current == null) return;
+                                final topics = {
+                                  ...current.newsTopics,
+                                  item.topic,
+                                }.toList();
+                                await ref
+                                    .read(settingsProvider.notifier)
+                                    .updateSettings(
+                                      (s) => s.copyWith(newsTopics: topics),
+                                    );
+                                if (context.mounted) {
+                                  context.push('/news');
+                                }
+                              },
+                            ),
+                          ),
+                        ),
                       ),
                     ],
+                  );
+                },
+              ),
+              if (recent.isNotEmpty) ...[
+                const SizedBox(height: 28),
+                Text('Недавнее', style: textTheme.titleMedium),
+                const SizedBox(height: 12),
+                ...recent.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: AppColors.nightElevated,
+                      borderRadius: BorderRadius.circular(14),
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.history,
+                          color: AppColors.amber,
+                        ),
+                        title: Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(item.subtitle),
+                        onTap: () => context.go('/library'),
+                      ),
+                    ),
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
@@ -158,13 +241,18 @@ class _ContinueCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton.filled(
-                onPressed: onPlay,
-                style: IconButton.styleFrom(
-                  backgroundColor: AppColors.amber,
-                  foregroundColor: AppColors.night,
+              Semantics(
+                button: true,
+                label: playing ? 'Пауза' : 'Играть',
+                child: IconButton.filled(
+                  onPressed: onPlay,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.amber,
+                    foregroundColor: AppColors.night,
+                    minimumSize: const Size(52, 52),
+                  ),
+                  icon: Icon(playing ? Icons.pause : Icons.play_arrow),
                 ),
-                icon: Icon(playing ? Icons.pause : Icons.play_arrow),
               ),
             ],
           ),

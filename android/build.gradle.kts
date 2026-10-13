@@ -19,6 +19,13 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// AGP 9 can fail bundling plugin classes when incremental outputs collide.
+subprojects {
+    tasks.withType<JavaCompile>().configureEach {
+        options.isIncremental = false
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

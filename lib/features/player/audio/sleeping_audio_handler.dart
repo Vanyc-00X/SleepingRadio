@@ -20,6 +20,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
 
   static const demoMediaId = 'demo_night_loop';
   static const demoAssetPath = 'assets/audio/night_loop.wav';
+  static const ambientAssetPath = 'assets/audio/night_loop.wav';
 
   static final extendTimerControl = MediaControl.custom(
     androidIcon: 'drawable/audio_service_fast_forward',
@@ -30,6 +31,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   final PlaybackProgressRepository progressRepository;
   final BooksRepository booksRepository;
   final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _ambient = AudioPlayer();
   final BookTtsEngine _tts = BookTtsEngine();
 
   final _sessionController = StreamController<PlaybackSession>.broadcast();
@@ -46,13 +48,23 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   final double _baseVolume = 1;
   bool _fading = false;
   double _speechRate = 1;
+  bool _ambientEnabled = false;
+  double _ambientVolume = 0.12;
+  bool _ambientLoaded = false;
 
   PlaybackSession get session => _session;
 
   Future<void> ready() async {
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.speech());
-    await _tts.ready();
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.speech());
+    } catch (_) {
+      // На части устройств session configure может падать — не блокируем старт.
+    }
+
+    try {
+      await _tts.ready();
+    } catch (_) {}
 
     _tts.onProgress = (offset, completed) {
       unawaited(_onTtsProgress(offset, completed));
@@ -82,7 +94,18 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       }
     });
 
-    await loadDemoTrack(autoplay: false);
+    try {
+      await loadDemoTrack(autoplay: false);
+    } catch (_) {
+      _demoLoaded = false;
+      _emit(
+        const PlaybackSession(
+          currentEpisodeId: demoMediaId,
+          title: 'Ночной демо-трек',
+          state: PlayerState.paused,
+        ),
+      );
+    }
   }
 
   Future<void> loadDemoTrack({bool autoplay = false}) async {
@@ -139,6 +162,13 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     required String text,
     required int startCharOffset,
     required double speechRate,
+    double pitch = 1,
+    String voiceId = 'calm_female_ru',
+    bool preferCloud = false,
+    String? ttsApiKey,
+    String? ttsBaseUrl,
+    String? comfyUrl,
+    int cacheLimitGb = 2,
   }) async {
     await _player.stop();
     _bookMode = true;
@@ -162,6 +192,13 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       text: text,
       startOffset: startCharOffset,
       speechRate: speechRate,
+      pitch: pitch,
+      voiceId: voiceId,
+      preferCloud: preferCloud,
+      apiKey: ttsApiKey,
+      baseUrl: ttsBaseUrl,
+      comfyUrl: comfyUrl,
+      cacheLimitGb: cacheLimitGb,
     );
 
     final duration = _tts.estimateDuration();
@@ -193,11 +230,88 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     await play();
   }
 
+  /// Озвучка произвольного скрипта (URL / новости / выпуск).
+  Future<void> playNarration({
+    required String episodeId,
+    required String title,
+    required String subtitle,
+    required String script,
+    required double speechRate,
+    double pitch = 1,
+    String voiceId = 'calm_female_ru',
+    bool preferCloud = false,
+    String? ttsApiKey,
+    String? ttsBaseUrl,
+    String? comfyUrl,
+    int cacheLimitGb = 2,
+  }) async {
+    await _player.stop();
+    _bookMode = true;
+    _speechRate = speechRate;
+    _fading = false;
+
+    final mediaId = 'episode:$episodeId';
+    _emit(
+      _session.copyWith(
+        currentEpisodeId: mediaId,
+        clearBookId: true,
+        clearChapterId: true,
+        title: title,
+        subtitle: subtitle,
+        isBookMode: true,
+        state: PlayerState.loading,
+      ),
+    );
+
+    await _tts.prepare(
+      text: script,
+      startOffset: 0,
+      speechRate: speechRate,
+      pitch: pitch,
+      voiceId: voiceId,
+      preferCloud: preferCloud,
+      apiKey: ttsApiKey,
+      baseUrl: ttsBaseUrl,
+      comfyUrl: comfyUrl,
+      cacheLimitGb: cacheLimitGb,
+    );
+
+    final duration = _tts.estimateDuration();
+    mediaItem.add(
+      MediaItem(
+        id: mediaId,
+        title: title,
+        album: subtitle,
+        artist: AppConstants.appName,
+        duration: duration,
+      ),
+    );
+
+    _emit(
+      PlaybackSession(
+        currentEpisodeId: mediaId,
+        title: title,
+        subtitle: subtitle,
+        isBookMode: true,
+        position: Duration.zero,
+        duration: duration,
+        state: PlayerState.paused,
+        timerEndsAt: _session.timerEndsAt,
+        timerPresetMinutes: _session.timerPresetMinutes,
+        playUntilEnd: _session.playUntilEnd,
+      ),
+    );
+    _broadcastTtsState(playing: false);
+    await play();
+  }
+
   @override
   Future<void> play() async {
     _fading = false;
     if (_bookMode) {
       await _tts.setVolume(_baseVolume);
+      await _setAmbientFadeVolume(1);
+      await _startAmbient();
       _emit(_session.copyWith(state: PlayerState.playing));
       _broadcastTtsState(playing: true);
       _ensureTicker();
@@ -205,6 +319,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       return;
     }
 
+    await _stopAmbient();
     if (!_demoLoaded) await loadDemoTrack();
     await _player.setLoopMode(
       _session.playUntilEnd ? LoopMode.off : LoopMode.one,
@@ -225,6 +340,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> pause() async {
     if (_bookMode) {
       await _tts.pause();
+      await _stopAmbient();
       _emit(_session.copyWith(state: PlayerState.paused));
       _broadcastTtsState(playing: false);
       await _persistBookProgress();
@@ -238,6 +354,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     await _clearTimer();
+    await _stopAmbient();
     if (_bookMode) {
       await _tts.stop();
       await _persistBookProgress();
@@ -247,6 +364,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await _player.setVolume(_baseVolume);
     await _tts.setVolume(_baseVolume);
+    await _setAmbientFadeVolume(1);
     _emit(
       const PlaybackSession(
         currentEpisodeId: demoMediaId,
@@ -306,6 +424,58 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       return;
     }
     await _player.setSpeed(speed);
+  }
+
+  Future<void> setPitch(double pitch) async {
+    if (_bookMode) {
+      await _tts.setPitch(pitch);
+    }
+  }
+
+  Future<void> setAmbient({
+    required bool enabled,
+    double volume = 0.12,
+  }) async {
+    _ambientEnabled = enabled;
+    _ambientVolume = volume.clamp(0.04, 0.22);
+    if (!enabled) {
+      await _stopAmbient();
+      return;
+    }
+    if (_bookMode && _isActivelyPlaying) {
+      await _startAmbient();
+    }
+  }
+
+  Future<void> _ensureAmbientLoaded() async {
+    if (_ambientLoaded) return;
+    await _ambient.setAudioSource(AudioSource.asset(ambientAssetPath));
+    await _ambient.setLoopMode(LoopMode.one);
+    _ambientLoaded = true;
+  }
+
+  Future<void> _startAmbient() async {
+    if (!_ambientEnabled || !_bookMode) return;
+    try {
+      await _ensureAmbientLoaded();
+      await _ambient.setVolume(_ambientVolume);
+      await _ambient.play();
+    } catch (_) {
+      // Ambient — опциональный слой; голос важнее.
+    }
+  }
+
+  Future<void> _stopAmbient() async {
+    try {
+      await _ambient.pause();
+    } catch (_) {}
+  }
+
+  Future<void> _setAmbientFadeVolume(double voiceVolume) async {
+    if (!_ambientEnabled) return;
+    try {
+      await _ambient.setVolume((_ambientVolume * voiceVolume).clamp(0.0, 0.22));
+    } catch (_) {}
   }
 
   Future<void> setSleepTimer({
@@ -441,6 +611,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       );
       if (_bookMode) {
         await _tts.setVolume(volume);
+        await _setAmbientFadeVolume(volume);
       } else {
         await _player.setVolume(volume);
       }
@@ -453,6 +624,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _finishByTimer() async {
     _ticker?.cancel();
     _fading = false;
+    await _stopAmbient();
     if (_bookMode) {
       await _tts.pause();
       await _tts.setVolume(_baseVolume);

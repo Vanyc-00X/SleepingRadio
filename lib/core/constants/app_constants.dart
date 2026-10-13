@@ -12,8 +12,6 @@ abstract final class AppConstants {
   static const double speechRateMin = 0.8;
   static const double speechRateMax = 1.5;
 
-  static const List<({String id, String label})> mvpVoices = [
-    (id: 'calm_female_ru', label: 'Спокойный женский'),
-    (id: 'warm_male_ru', label: 'Тёплый мужской'),
-  ];
+  static const double pitchMin = 0.8;
+  static const double pitchMax = 1.2;
 }

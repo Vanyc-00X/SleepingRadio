@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import '../../domain/models/book.dart' as domain;
 import '../books/epub_book_parser.dart';
 import '../books/fb2_book_parser.dart';
+import '../books/simple_pdf_text_extractor.dart';
+import '../books/txt_book_parser.dart';
 import '../local/app_database.dart' as db;
 
 class BooksRepository {
@@ -17,6 +19,8 @@ class BooksRepository {
   final _uuid = const Uuid();
   final _epubParser = EpubBookParser();
   final _fb2Parser = Fb2BookParser();
+  final _txtParser = TxtBookParser();
+  final _pdfParser = SimplePdfTextExtractor();
 
   Stream<List<domain.Book>> watchBooks() {
     return (_db.select(_db.books)..orderBy([
@@ -49,16 +53,30 @@ class BooksRepository {
 
   Future<domain.Book> importFromPath(String sourcePath) async {
     final ext = p.extension(sourcePath).toLowerCase();
-    if (ext != '.epub' && ext != '.fb2') {
+    final fileName = p.basename(sourcePath);
+    if (ext != '.epub' &&
+        ext != '.fb2' &&
+        ext != '.txt' &&
+        ext != '.pdf') {
       throw FormatException(
-        'Поддерживаются только .epub и .fb2, получено $ext',
+        'Поддерживаются .epub, .fb2, .txt и простой .pdf, получено $ext',
       );
     }
 
     final bytes = await File(sourcePath).readAsBytes();
-    final parsed = ext == '.epub'
-        ? await _epubParser.parse(bytes)
-        : _fb2Parser.parse(bytes);
+    final domain.ParsedBook parsed;
+    switch (ext) {
+      case '.epub':
+        parsed = await _epubParser.parse(bytes);
+      case '.fb2':
+        parsed = _fb2Parser.parse(bytes);
+      case '.txt':
+        parsed = _txtParser.parse(bytes, fileName: fileName);
+      case '.pdf':
+        parsed = _pdfParser.parse(bytes, fileName: fileName);
+      default:
+        throw FormatException('Неизвестный формат $ext');
+    }
 
     final docs = await getApplicationDocumentsDirectory();
     final booksDir = Directory(p.join(docs.path, 'books'));

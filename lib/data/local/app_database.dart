@@ -126,6 +126,13 @@ class AppDatabase extends _$AppDatabase {
   );
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'sleeping_radio');
+    return driftDatabase(
+      name: 'sleeping_radio',
+      // Нужен для Flutter Web; на Android/iOS параметр игнорируется.
+      web: DriftWebOptions(
+        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+        driftWorker: Uri.parse('drift_worker.js'),
+      ),
+    );
   }
 }

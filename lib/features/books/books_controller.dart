@@ -16,7 +16,7 @@ class BookImportNotifier extends AsyncNotifier<void> {
     try {
       final files = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: const ['epub', 'fb2'],
+        allowedExtensions: const ['epub', 'fb2', 'txt', 'pdf'],
       );
       if (files.isEmpty) {
         state = const AsyncData(null);

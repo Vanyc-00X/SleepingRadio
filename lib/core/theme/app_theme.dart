@@ -6,14 +6,37 @@ import 'app_colors.dart';
 
 abstract final class AppTheme {
   static ThemeData get dark {
-    final baseText = GoogleFonts.literataTextTheme(
-      ThemeData.dark().textTheme,
-    ).apply(
-      bodyColor: AppColors.moon,
-      displayColor: AppColors.moon,
-    );
+    try {
+      return _build(useGoogleFonts: true);
+    } catch (_) {
+      // Без сети/шрифтов google_fonts не должен ронять UI.
+      return _build(useGoogleFonts: false);
+    }
+  }
 
-    final uiText = GoogleFonts.manropeTextTheme(baseText);
+  static ThemeData _build({required bool useGoogleFonts}) {
+    final baseDark = ThemeData.dark();
+    TextTheme baseText;
+    TextTheme uiText;
+
+    if (useGoogleFonts) {
+      baseText = GoogleFonts.literataTextTheme(baseDark.textTheme).apply(
+        bodyColor: AppColors.moon,
+        displayColor: AppColors.moon,
+      );
+      uiText = GoogleFonts.manropeTextTheme(baseText);
+    } else {
+      baseText = baseDark.textTheme.apply(
+        bodyColor: AppColors.moon,
+        displayColor: AppColors.moon,
+        fontFamily: 'serif',
+      );
+      uiText = baseDark.textTheme.apply(
+        bodyColor: AppColors.moon,
+        displayColor: AppColors.moon,
+        fontFamily: 'sans-serif',
+      );
+    }
 
     final colorScheme = ColorScheme.dark(
       surface: AppColors.night,
@@ -87,9 +110,53 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      listTileTheme: const ListTileThemeData(
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.moon,
+          minimumSize: const Size(48, 48),
+          side: BorderSide(color: AppColors.mist.withValues(alpha: 0.35)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.nightElevated,
+        hintStyle: uiText.bodyMedium?.copyWith(color: AppColors.mist),
+        labelStyle: uiText.bodyMedium?.copyWith(color: AppColors.mist),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: AppColors.mist.withValues(alpha: 0.2)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: AppColors.mist.withValues(alpha: 0.2)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.amber, width: 1.4),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.nightElevated,
+        selectedColor: AppColors.amber.withValues(alpha: 0.25),
+        labelStyle: uiText.labelLarge?.copyWith(color: AppColors.moon),
+        secondaryLabelStyle: uiText.labelLarge?.copyWith(
+          color: AppColors.amber,
+        ),
+        side: BorderSide(color: AppColors.mist.withValues(alpha: 0.2)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      listTileTheme: ListTileThemeData(
         iconColor: AppColors.mist,
         textColor: AppColors.moon,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       dividerTheme: DividerThemeData(
         color: AppColors.mist.withValues(alpha: 0.15),
@@ -98,6 +165,11 @@ abstract final class AppTheme {
         backgroundColor: AppColors.nightSoft,
         contentTextStyle: uiText.bodyMedium?.copyWith(color: AppColors.moon),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.nightElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }

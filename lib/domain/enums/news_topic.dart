@@ -14,7 +14,7 @@ enum NewsTopic {
     NewsTopic.science => 'Наука',
     NewsTopic.culture => 'Культура',
     NewsTopic.sport => 'Спорт',
-    NewsTopic.local => 'Local',
+    NewsTopic.local => 'Локальное',
   };
 
   static NewsTopic fromStorage(String value) {
