@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "com.sleepingradio.sleeping_radio"
     compileSdk = flutter.compileSdkVersion
+    buildToolsVersion = "36.0.0"
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

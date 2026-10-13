@@ -52,3 +52,6 @@ app.*.map.json
 *.pem
 *.jks
 key.properties
+
+# Large local TTS model caches
+tooling/tts_models/

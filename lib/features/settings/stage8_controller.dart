@@ -7,6 +7,8 @@ class Stage8State {
   const Stage8State({
     required this.ambientEnabled,
     required this.ambientVolume,
+    required this.voiceVolume,
+    required this.autoAdvanceChapters,
     required this.ollamaEnabled,
     required this.ollamaUrl,
     required this.ollamaModel,
@@ -14,6 +16,8 @@ class Stage8State {
 
   final bool ambientEnabled;
   final double ambientVolume;
+  final double voiceVolume;
+  final bool autoAdvanceChapters;
   final bool ollamaEnabled;
   final String ollamaUrl;
   final String ollamaModel;
@@ -21,6 +25,8 @@ class Stage8State {
   Stage8State copyWith({
     bool? ambientEnabled,
     double? ambientVolume,
+    double? voiceVolume,
+    bool? autoAdvanceChapters,
     bool? ollamaEnabled,
     String? ollamaUrl,
     String? ollamaModel,
@@ -28,6 +34,8 @@ class Stage8State {
     return Stage8State(
       ambientEnabled: ambientEnabled ?? this.ambientEnabled,
       ambientVolume: ambientVolume ?? this.ambientVolume,
+      voiceVolume: voiceVolume ?? this.voiceVolume,
+      autoAdvanceChapters: autoAdvanceChapters ?? this.autoAdvanceChapters,
       ollamaEnabled: ollamaEnabled ?? this.ollamaEnabled,
       ollamaUrl: ollamaUrl ?? this.ollamaUrl,
       ollamaModel: ollamaModel ?? this.ollamaModel,
@@ -49,6 +57,8 @@ class Stage8Notifier extends Notifier<Stage8State> {
     return Stage8State(
       ambientEnabled: prefs.ambientEnabled,
       ambientVolume: prefs.ambientVolume,
+      voiceVolume: prefs.voiceVolume,
+      autoAdvanceChapters: prefs.autoAdvanceChapters,
       ollamaEnabled: prefs.ollamaEnabled,
       ollamaUrl: prefs.ollamaUrl,
       ollamaModel: prefs.ollamaModel,
@@ -62,6 +72,16 @@ class Stage8Notifier extends Notifier<Stage8State> {
 
   Future<void> setAmbientVolume(double value) async {
     await _prefs.setAmbientVolume(value);
+    state = _snapshot();
+  }
+
+  Future<void> setVoiceVolume(double value) async {
+    await _prefs.setVoiceVolume(value);
+    state = _snapshot();
+  }
+
+  Future<void> setAutoAdvanceChapters(bool value) async {
+    await _prefs.setAutoAdvanceChapters(value);
     state = _snapshot();
   }
 

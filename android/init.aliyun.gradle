@@ -1,0 +1,34 @@
+// Prefer Aliyun mirrors when dl.google.com resets connections.
+gradle.settingsEvaluated { settings ->
+    settings.pluginManagement.repositories.maven {
+        url 'https://maven.aliyun.com/repository/google'
+    }
+    settings.pluginManagement.repositories.maven {
+        url 'https://maven.aliyun.com/repository/central'
+    }
+    settings.pluginManagement.repositories.maven {
+        url 'https://maven.aliyun.com/repository/public'
+    }
+    settings.pluginManagement.repositories.maven {
+        url 'https://maven.aliyun.com/repository/gradle-plugin'
+    }
+}
+
+allprojects {
+    buildscript {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/central' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+            google()
+            mavenCentral()
+        }
+    }
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        google()
+        mavenCentral()
+    }
+}

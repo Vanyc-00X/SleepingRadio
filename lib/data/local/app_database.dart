@@ -6,7 +6,7 @@ part 'app_database.g.dart';
 class UserSettingsRows extends Table {
   IntColumn get id => integer().withDefault(const Constant(1))();
   TextColumn get voiceId =>
-      text().withDefault(const Constant('calm_female_ru'))();
+      text().withDefault(const Constant('piper_denis'))();
   RealColumn get speechRate => real().withDefault(const Constant(1.0))();
   RealColumn get pitch => real().withDefault(const Constant(1.0))();
   TextColumn get commentLength =>
@@ -16,7 +16,7 @@ class UserSettingsRows extends Table {
   IntColumn get cacheLimitGb => integer().withDefault(const Constant(2))();
   TextColumn get newsTopicsCsv =>
       text().withDefault(const Constant('technology,science'))();
-  BoolColumn get useCloudAi => boolean().withDefault(const Constant(true))();
+  BoolColumn get useCloudAi => boolean().withDefault(const Constant(false))();
   BoolColumn get onboardingCompleted =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get booksReadOnly =>

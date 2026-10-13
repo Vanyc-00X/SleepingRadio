@@ -22,7 +22,9 @@ class MiniPlayerBar extends ConsumerWidget {
     final title = session.title.isEmpty ? 'Ночной демо-трек' : session.title;
     final subtitle = session.state == PlayerState.fadingOut
         ? 'Засыпание…'
-        : (session.subtitle.isEmpty ? 'Сонное радио' : session.subtitle);
+        : session.hasKaraoke
+            ? 'Текст на экране плеера'
+            : (session.subtitle.isEmpty ? 'Сонное радио' : session.subtitle);
 
     return Material(
       color: AppColors.nightSoft,

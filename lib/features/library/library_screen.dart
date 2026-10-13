@@ -314,6 +314,20 @@ class _EpisodesList extends ConsumerWidget {
                 icon: const Icon(Icons.more_vert, color: AppColors.mist),
                 color: AppColors.nightElevated,
                 onSelected: (value) async {
+                  if (value == 'continue' || value == 'from_start') {
+                    final script = episode.script?.trim() ?? '';
+                    if (script.isEmpty) return;
+                    await ref.read(playerSessionProvider.notifier).playNarration(
+                          episodeId: episode.id,
+                          title: episode.title,
+                          subtitle: playLabel,
+                          script: script,
+                          resumeSaved: value == 'continue',
+                          startCharOffset: value == 'from_start' ? 0 : null,
+                        );
+                    if (context.mounted) context.go('/player');
+                    return;
+                  }
                   if (value == 'rename') {
                     await _renameEpisode(context, ref, episode);
                   } else if (value == 'delete') {
@@ -341,6 +355,14 @@ class _EpisodesList extends ConsumerWidget {
                   }
                 },
                 itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'continue',
+                    child: Text('Продолжить'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'from_start',
+                    child: Text('С начала'),
+                  ),
                   const PopupMenuItem(
                     value: 'rename',
                     child: Text('Переименовать'),

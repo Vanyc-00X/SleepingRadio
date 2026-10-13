@@ -15,12 +15,15 @@ import '../../core/theme/app_colors.dart';
 import '../../data/llm/ollama_client.dart';
 import '../../data/settings/settings_backup.dart';
 import '../../data/settings/stage8_prefs.dart';
+import '../../data/settings/voice_presets.dart';
 import '../../data/tts/comfy_local_tts_client.dart';
 import '../../data/tts/on_device_tts_models.dart';
 import '../../data/tts/tts_voice.dart';
 import '../../domain/enums/comment_length.dart';
 import '../../domain/models/user_settings.dart';
+import '../player/player_controller.dart';
 import 'stage8_controller.dart';
+import 'voice_preview.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -43,6 +46,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   var _modelDownloading = false;
   double _modelProgress = 0;
   String? _modelStatus;
+  VoicePreview? _voicePreview;
+  var _previewing = false;
+  String? _previewStatus;
 
   @override
   void initState() {
@@ -51,6 +57,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _comfyUrlController = TextEditingController();
     _ollamaUrlController = TextEditingController();
     _ollamaModelController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _voicePreview?.dispose();
+    _apiKeyController.dispose();
+    _comfyUrlController.dispose();
+    _ollamaUrlController.dispose();
+    _ollamaModelController.dispose();
+    super.dispose();
   }
 
   @override
@@ -66,13 +82,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _ollamaModelController.text = stage8.ollamaModel;
   }
 
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    _comfyUrlController.dispose();
-    _ollamaUrlController.dispose();
-    _ollamaModelController.dispose();
-    super.dispose();
+  Future<void> _applyVoicePreset(VoicePreset preset) async {
+    final store = ref.read(voicePresetsStoreProvider);
+    await store.setActivePresetId(preset.id);
+    await store.setInterChunkPauseMs(preset.pauseMs);
+    await ref.read(settingsProvider.notifier).updateSettings(
+          (s) => s.copyWith(
+            speechRate: preset.speechRate,
+            pitch: preset.pitch,
+            voiceId: preset.voiceId ?? s.voiceId,
+          ),
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Пресет «${preset.labelRu}» применён')),
+    );
+    setState(() {});
+  }
+
+  Future<void> _previewVoice(UserSettings settings) async {
+    final voice = TtsVoices.byId(settings.voiceId);
+    final messenger = ScaffoldMessenger.of(context);
+    if (voice.isLocalComfy) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Превью клона — после настройки Comfy на плеере'),
+        ),
+      );
+      return;
+    }
+    _voicePreview ??= VoicePreview(
+      onDevice: ref.read(onDeviceTtsEngineProvider),
+    );
+    setState(() {
+      _previewing = true;
+      _previewStatus = 'Готовлю семпл…';
+    });
+    final handler = ref.read(audioHandlerProvider);
+    final wasPlaying = handler.session.isPlaying;
+    try {
+      if (wasPlaying) await handler.pause();
+      await _voicePreview!.play(
+        voice: voice,
+        speechRate: settings.speechRate,
+        pitch: settings.pitch,
+        onStatus: (status) {
+          if (!mounted) return;
+          setState(() => _previewStatus = status);
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Превью: $error')),
+      );
+    } finally {
+      if (wasPlaying) {
+        try {
+          await handler.play();
+        } catch (_) {}
+      }
+      if (mounted) {
+        setState(() {
+          _previewing = false;
+          _previewStatus = null;
+        });
+      }
+    }
   }
 
   @override
@@ -90,22 +166,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             _SectionTitle('Голос'),
+            Text(
+              'Рекомендуем Дениса — самый чистый offline Piper для чтения. '
+              'Голос можно менять и во время озвучки на экране плеера.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mist,
+                  ),
+            ),
+            const SizedBox(height: 8),
             ...TtsVoices.all.map((voice) {
               final selected = settings.voiceId == voice.id;
               return ListTile(
-                title: Text(voice.labelRu),
+                title: Row(
+                  children: [
+                    Flexible(child: Text(voice.labelRu)),
+                    if (voice.badgeRu != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.amber.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          voice.badgeRu!,
+                          style: const TextStyle(
+                            color: AppColors.amber,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 subtitle: Text(voice.descriptionRu),
                 trailing: selected
                     ? const Icon(Icons.check_circle, color: AppColors.amber)
                     : const Icon(Icons.circle_outlined, color: AppColors.mist),
-                onTap: () {
-                  ref
-                      .read(settingsProvider.notifier)
-                      .updateSettings((s) => s.copyWith(voiceId: voice.id));
+                onTap: () async {
+                  await ref.read(settingsProvider.notifier).updateSettings(
+                        (s) => s.copyWith(voiceId: voice.id),
+                      );
+                  if (voice.isOnDevice) {
+                    await _downloadOnDeviceModel(voice.id);
+                  }
                 },
               );
             }),
-            if (TtsVoices.byId(settings.voiceId).isOnDevice) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextButton.icon(
+                    onPressed: _previewing || _modelDownloading
+                        ? null
+                        : () => _previewVoice(settings),
+                    icon: Icon(
+                      _previewing ? Icons.hourglass_top : Icons.play_circle_outline,
+                    ),
+                    label: Text(
+                      _previewing
+                          ? (_previewStatus ?? 'Превью…')
+                          : 'Прослушать выбранный голос',
+                    ),
+                  ),
+                  if (_previewStatus != null && _previewing)
+                    Text(
+                      _previewStatus!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.mist,
+                          ),
+                    ),
+                ],
+              ),
+            ),
+            if (TtsVoices.byId(settings.voiceId).isOnDevice ||
+                _modelDownloading) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
                 child: Column(
@@ -125,9 +265,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     TextButton.icon(
                       onPressed: _modelDownloading
                           ? null
-                          : () => _downloadOnDeviceModel(settings.voiceId),
+                          : () => _downloadOnDeviceModel(
+                                settings.voiceId == TtsVoices.goblinLocal.id
+                                    ? OnDeviceTtsModels.recommended.id
+                                    : settings.voiceId,
+                              ),
                       icon: const Icon(Icons.download),
-                      label: const Text('Скачать offline-модель'),
+                      label: Text(
+                        settings.voiceId == OnDeviceTtsModels.recommended.id
+                            ? 'Скачать Дениса (~64 МБ)'
+                            : 'Скачать offline-модель',
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _modelDownloading
+                          ? null
+                          : () => _downloadOnDeviceModel(
+                                OnDeviceTtsModels.recommended.id,
+                              ),
+                      icon: const Icon(Icons.star_outline),
+                      label: const Text('Загрузить лучшую (Денис)'),
                     ),
                   ],
                 ),
@@ -247,6 +404,60 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 );
               },
+            ),
+            const SizedBox(height: 8),
+            _SectionTitle('Пресеты Piper / голоса'),
+            Text(
+              'Скорость, высота и пауза между фразами. Профили Ирина и Руслан — в списке голосов выше.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.mist,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final preset in BuiltInVoicePresets.all)
+                  ActionChip(
+                    label: Text(preset.labelRu),
+                    onPressed: () => _applyVoicePreset(preset),
+                  ),
+              ],
+            ),
+            Builder(
+              builder: (context) {
+                final store = ref.watch(voicePresetsStoreProvider);
+                final pauseMs = store.interChunkPauseMs;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 8),
+                    Text('Пауза между фразами: $pauseMs мс'),
+                    Slider(
+                      value: pauseMs.toDouble(),
+                      min: 0,
+                      max: 1200,
+                      divisions: 24,
+                      label: '$pauseMs',
+                      onChanged: (v) async {
+                        await store.setInterChunkPauseMs(v.round());
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+            const Divider(height: 32),
+            _SectionTitle('Новости'),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.rss_feed, color: AppColors.amber),
+              title: const Text('RSS-ленты и приоритет'),
+              subtitle: const Text('Встроенные + свои URL, порядок в сводке'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/settings/feeds'),
             ),
             const Divider(height: 32),
             _SectionTitle('Комментарии ИИ'),
@@ -411,8 +622,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     if (stage8.ambientEnabled)
                       _LabeledSlider(
                         value: stage8.ambientVolume,
-                        min: 0.04,
-                        max: 0.22,
+                        min: 0.0,
+                        max: 0.4,
                         label: stage8.ambientVolume.toStringAsFixed(2),
                         onChanged: (value) {
                           ref
@@ -420,6 +631,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               .setAmbientVolume(value);
                         },
                       ),
+                    ListTile(
+                      title: const Text('Громкость голоса'),
+                      subtitle: Text(
+                        stage8.voiceVolume.toStringAsFixed(2),
+                      ),
+                    ),
+                    _LabeledSlider(
+                      value: stage8.voiceVolume,
+                      min: 0.15,
+                      max: 1.0,
+                      label: stage8.voiceVolume.toStringAsFixed(2),
+                      onChanged: (value) {
+                        ref
+                            .read(stage8StateProvider.notifier)
+                            .setVoiceVolume(value);
+                      },
+                    ),
+                    SwitchListTile(
+                      value: stage8.autoAdvanceChapters,
+                      activeThumbColor: AppColors.amber,
+                      title: const Text('Автопереход к следующей главе'),
+                      subtitle: const Text(
+                        'В конце главы — следующая; выкл. = стоп',
+                      ),
+                      onChanged: (value) {
+                        ref
+                            .read(stage8StateProvider.notifier)
+                            .setAutoAdvanceChapters(value);
+                      },
+                    ),
                     SwitchListTile(
                       value: stage8.ollamaEnabled,
                       activeThumbColor: AppColors.amber,

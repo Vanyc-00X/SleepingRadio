@@ -45,14 +45,58 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   bool _demoLoaded = false;
   bool _bookMode = false;
   bool _ttsLoop = false;
-  final double _baseVolume = 1;
+  double _voiceVolume = 1;
   bool _fading = false;
   double _speechRate = 1;
   bool _ambientEnabled = false;
   double _ambientVolume = 0.12;
   bool _ambientLoaded = false;
+  bool _autoAdvanceChapters = true;
+  int _interChunkPauseMs = 280;
+  String _scriptText = '';
+  _BookTtsParams? _lastBookParams;
 
   PlaybackSession get session => _session;
+
+  double get _effectiveVoiceVolume => _voiceVolume.clamp(0.15, 1.0);
+
+  void setInterChunkPauseMs(int ms) {
+    _interChunkPauseMs = ms.clamp(0, 2000);
+  }
+
+  /// Смена голоса во время озвучки (с текущего места).
+  Future<void> switchVoice(String voiceId) async {
+    if (!_bookMode) return;
+    final shouldResume = _tts.isPlaying || _ttsLoop;
+    await _tts.switchVoice(voiceId);
+    final prev = _lastBookParams;
+    if (prev != null) {
+      _lastBookParams = prev.copyWith(voiceId: voiceId);
+    }
+    // Дождаться выхода текущего TTS-цикла.
+    var guard = 0;
+    while (_ttsLoop && guard < 40) {
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+      guard++;
+    }
+    _emit(
+      _session.copyWith(
+        voiceId: voiceId,
+        position: _tts.estimatePosition(),
+        duration: _tts.estimateDuration(),
+        currentChunkIndex: _tts.currentChunkIndex,
+        charOffset: _tts.charOffset,
+        state: shouldResume ? PlayerState.playing : PlayerState.paused,
+      ),
+    );
+    if (shouldResume) {
+      _emit(_session.copyWith(state: PlayerState.playing));
+      _broadcastTtsState(playing: true);
+      unawaited(_runTtsPlayback());
+    } else {
+      _broadcastTtsState(playing: false);
+    }
+  }
 
   Future<void> ready() async {
     try {
@@ -174,6 +218,16 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     _bookMode = true;
     _speechRate = speechRate;
     _fading = false;
+    _lastBookParams = _BookTtsParams(
+      speechRate: speechRate,
+      pitch: pitch,
+      voiceId: voiceId,
+      preferCloud: preferCloud,
+      ttsApiKey: ttsApiKey,
+      ttsBaseUrl: ttsBaseUrl,
+      comfyUrl: comfyUrl,
+      cacheLimitGb: cacheLimitGb,
+    );
 
     final mediaId = 'book:$bookId:$chapterId';
     _emit(
@@ -185,9 +239,13 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         subtitle: chapterTitle,
         isBookMode: true,
         state: PlayerState.loading,
+        voiceVolume: _voiceVolume,
+        ambientVolume: _ambientVolume,
+        autoAdvanceChapters: _autoAdvanceChapters,
       ),
     );
 
+    _scriptText = text;
     await _tts.prepare(
       text: text,
       startOffset: startCharOffset,
@@ -199,6 +257,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       baseUrl: ttsBaseUrl,
       comfyUrl: comfyUrl,
       cacheLimitGb: cacheLimitGb,
+      interChunkPauseMs: _interChunkPauseMs,
     );
 
     final duration = _tts.estimateDuration();
@@ -223,6 +282,12 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         position: _tts.estimatePosition(),
         duration: duration,
         state: PlayerState.paused,
+        scriptText: text,
+        chunks: _tts.chunks,
+        chunkStarts: _tts.chunkStarts,
+        currentChunkIndex: _tts.currentChunkIndex,
+        charOffset: _tts.charOffset,
+        voiceId: voiceId,
       ),
     );
     _broadcastTtsState(playing: false);
@@ -244,6 +309,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     String? ttsBaseUrl,
     String? comfyUrl,
     int cacheLimitGb = 2,
+    int? startCharOffset,
   }) async {
     await _player.stop();
     _bookMode = true;
@@ -251,6 +317,8 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     _fading = false;
 
     final mediaId = 'episode:$episodeId';
+    final savedOffset = startCharOffset ??
+        await progressRepository.loadCharOffset(mediaId);
     _emit(
       _session.copyWith(
         currentEpisodeId: mediaId,
@@ -263,9 +331,10 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       ),
     );
 
+    _scriptText = script;
     await _tts.prepare(
       text: script,
-      startOffset: 0,
+      startOffset: savedOffset,
       speechRate: speechRate,
       pitch: pitch,
       voiceId: voiceId,
@@ -274,6 +343,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       baseUrl: ttsBaseUrl,
       comfyUrl: comfyUrl,
       cacheLimitGb: cacheLimitGb,
+      interChunkPauseMs: _interChunkPauseMs,
     );
 
     final duration = _tts.estimateDuration();
@@ -293,12 +363,19 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         title: title,
         subtitle: subtitle,
         isBookMode: true,
-        position: Duration.zero,
+        position: _tts.estimatePosition(),
         duration: duration,
         state: PlayerState.paused,
         timerEndsAt: _session.timerEndsAt,
         timerPresetMinutes: _session.timerPresetMinutes,
         playUntilEnd: _session.playUntilEnd,
+        timerMode: _session.timerMode,
+        scriptText: script,
+        chunks: _tts.chunks,
+        chunkStarts: _tts.chunkStarts,
+        currentChunkIndex: _tts.currentChunkIndex,
+        charOffset: _tts.charOffset,
+        voiceId: voiceId,
       ),
     );
     _broadcastTtsState(playing: false);
@@ -309,10 +386,15 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> play() async {
     _fading = false;
     if (_bookMode) {
-      await _tts.setVolume(_baseVolume);
-      await _setAmbientFadeVolume(1);
+      await _applyLiveVolumes(fadeFactor: 1);
       await _startAmbient();
-      _emit(_session.copyWith(state: PlayerState.playing));
+      _emit(
+        _session.copyWith(
+          state: PlayerState.playing,
+          voiceVolume: _voiceVolume,
+          ambientVolume: _ambientVolume,
+        ),
+      );
       _broadcastTtsState(playing: true);
       _ensureTicker();
       unawaited(_runTtsPlayback());
@@ -324,7 +406,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     await _player.setLoopMode(
       _session.playUntilEnd ? LoopMode.off : LoopMode.one,
     );
-    await _player.setVolume(_baseVolume);
+    await _applyLiveVolumes(fadeFactor: 1);
     await _player.play();
     _emit(_session.copyWith(state: PlayerState.playing));
     _ensureTicker();
@@ -362,13 +444,14 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
       await _player.stop();
       await _player.seek(Duration.zero);
     }
-    await _player.setVolume(_baseVolume);
-    await _tts.setVolume(_baseVolume);
-    await _setAmbientFadeVolume(1);
+    await _applyLiveVolumes(fadeFactor: 1);
     _emit(
-      const PlaybackSession(
+      PlaybackSession(
         currentEpisodeId: demoMediaId,
         title: 'Ночной демо-трек',
+        voiceVolume: _voiceVolume,
+        ambientVolume: _ambientVolume,
+        autoAdvanceChapters: _autoAdvanceChapters,
       ),
     );
     _bookMode = false;
@@ -437,13 +520,49 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     double volume = 0.12,
   }) async {
     _ambientEnabled = enabled;
-    _ambientVolume = volume.clamp(0.04, 0.22);
+    _ambientVolume = volume.clamp(0.0, 0.4);
+    _emit(
+      _session.copyWith(
+        ambientVolume: _ambientVolume,
+      ),
+    );
     if (!enabled) {
       await _stopAmbient();
       return;
     }
     if (_bookMode && _isActivelyPlaying) {
       await _startAmbient();
+    } else if (_bookMode) {
+      await _applyLiveVolumes(fadeFactor: 1);
+    }
+  }
+
+  Future<void> setVoiceVolume(double volume) async {
+    _voiceVolume = volume.clamp(0.15, 1.0);
+    _emit(_session.copyWith(voiceVolume: _voiceVolume));
+    if (!_fading) {
+      await _applyLiveVolumes(fadeFactor: 1);
+    }
+  }
+
+  Future<void> setAutoAdvanceChapters(bool value) async {
+    _autoAdvanceChapters = value;
+    _emit(_session.copyWith(autoAdvanceChapters: value));
+  }
+
+  Future<void> _applyLiveVolumes({required double fadeFactor}) async {
+    final voice = (_effectiveVoiceVolume * fadeFactor).clamp(0.0, 1.0);
+    final ambient =
+        (_ambientVolume * fadeFactor).clamp(0.0, 0.4);
+    if (_bookMode) {
+      await _tts.setVolume(voice);
+      if (_ambientEnabled) {
+        try {
+          await _ambient.setVolume(ambient);
+        } catch (_) {}
+      }
+    } else {
+      await _player.setVolume(voice);
     }
   }
 
@@ -458,7 +577,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     if (!_ambientEnabled || !_bookMode) return;
     try {
       await _ensureAmbientLoaded();
-      await _ambient.setVolume(_ambientVolume);
+      await _ambient.setVolume(_ambientVolume.clamp(0.0, 0.4));
       await _ambient.play();
     } catch (_) {
       // Ambient — опциональный слой; голос важнее.
@@ -471,32 +590,35 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
     } catch (_) {}
   }
 
-  Future<void> _setAmbientFadeVolume(double voiceVolume) async {
-    if (!_ambientEnabled) return;
-    try {
-      await _ambient.setVolume((_ambientVolume * voiceVolume).clamp(0.0, 0.22));
-    } catch (_) {}
-  }
-
   Future<void> setSleepTimer({
     int? minutes,
     bool playUntilEnd = false,
+    SleepTimerMode? mode,
   }) async {
     _fading = false;
-    await _player.setVolume(_baseVolume);
-    await _tts.setVolume(_baseVolume);
+    _tts.clearStopAfterCurrentChunk();
+    await _applyLiveVolumes(fadeFactor: 1);
 
-    if (playUntilEnd) {
+    final resolvedMode = mode ??
+        (playUntilEnd ? SleepTimerMode.afterChapter : SleepTimerMode.countdown);
+
+    if (resolvedMode == SleepTimerMode.afterChapter ||
+        resolvedMode == SleepTimerMode.afterSegment ||
+        playUntilEnd) {
       _ticker?.cancel();
       if (!_bookMode) await _player.setLoopMode(LoopMode.off);
+      if (resolvedMode == SleepTimerMode.afterSegment && _bookMode) {
+        _tts.requestStopAfterCurrentChunk();
+      }
       _emit(
         _session.copyWith(
           playUntilEnd: true,
+          timerMode: resolvedMode == SleepTimerMode.countdown
+              ? SleepTimerMode.afterChapter
+              : resolvedMode,
           clearTimerEndsAt: true,
           clearTimerPreset: true,
-          state: _isActivelyPlaying
-              ? PlayerState.playing
-              : _session.state,
+          state: _isActivelyPlaying ? PlayerState.playing : _session.state,
         ),
       );
       _refreshControls();
@@ -516,6 +638,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         timerEndsAt: endsAt,
         timerPresetMinutes: minutes,
         playUntilEnd: false,
+        timerMode: SleepTimerMode.countdown,
       ),
     );
     _ensureTicker();
@@ -533,8 +656,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         : currentEnd;
 
     _fading = false;
-    await _player.setVolume(_baseVolume);
-    await _tts.setVolume(_baseVolume);
+    await _applyLiveVolumes(fadeFactor: 1);
     final endsAt = base.add(Duration(minutes: minutes));
     final remainingMinutes = endsAt.difference(now).inMinutes.clamp(1, 24 * 60);
     _emit(
@@ -542,6 +664,7 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         timerEndsAt: endsAt,
         timerPresetMinutes: remainingMinutes,
         playUntilEnd: false,
+        timerMode: SleepTimerMode.countdown,
         state: _isActivelyPlaying ? PlayerState.playing : _session.state,
       ),
     );
@@ -562,11 +685,49 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         await setSleepTimer(
           minutes: extras?['minutes'] as int?,
           playUntilEnd: extras?['playUntilEnd'] as bool? ?? false,
+          mode: _modeFromName(extras?['mode'] as String?),
         );
         return null;
+      case 'toggle_play':
+        if (_isActivelyPlaying) {
+          await pause();
+        } else {
+          await play();
+        }
+        return null;
+      case 'widget_snapshot':
+        return {
+          'title': _session.title,
+          'playing': _isActivelyPlaying,
+          'timerLabel': _widgetTimerLabel(),
+        };
       default:
         return super.customAction(name, extras);
     }
+  }
+
+  SleepTimerMode? _modeFromName(String? name) {
+    if (name == null) return null;
+    return SleepTimerMode.values.firstWhere(
+      (e) => e.name == name,
+      orElse: () => SleepTimerMode.countdown,
+    );
+  }
+
+  String _widgetTimerLabel() {
+    if (_session.timerMode == SleepTimerMode.afterChapter) {
+      return _session.isBookMode && _session.bookId != null
+          ? 'До конца главы'
+          : 'До конца';
+    }
+    if (_session.timerMode == SleepTimerMode.afterSegment) {
+      return 'До конца фразы';
+    }
+    final left = _session.timerRemaining;
+    if (left == null) return 'Таймер выкл.';
+    final m = left.inMinutes;
+    final s = left.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   @override
@@ -604,17 +765,13 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
         _fading = true;
         _emit(_session.copyWith(state: PlayerState.fadingOut));
       }
-      final volume = computeFadeVolume(
+      final fadeFactor = computeFadeVolume(
         remaining: remaining,
         fadeFor: fadeFor,
-        baseVolume: _baseVolume,
+        baseVolume: 1,
       );
-      if (_bookMode) {
-        await _tts.setVolume(volume);
-        await _setAmbientFadeVolume(volume);
-      } else {
-        await _player.setVolume(volume);
-      }
+      // Голос и ambient затухают вместе.
+      await _applyLiveVolumes(fadeFactor: fadeFactor);
     }
 
     _emit(_session.copyWith());
@@ -624,22 +781,37 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> _finishByTimer() async {
     _ticker?.cancel();
     _fading = false;
+    // Умный стоп: дослушать текущую фразу (сегмент), затем пауза.
+    if (_bookMode && (_tts.isPlaying || _ttsLoop)) {
+      _tts.requestStopAfterCurrentChunk();
+      _emit(
+        _session.copyWith(
+          clearTimerEndsAt: true,
+          clearTimerPreset: true,
+          playUntilEnd: false,
+          timerMode: SleepTimerMode.afterSegment,
+          state: PlayerState.fadingOut,
+        ),
+      );
+      _refreshControls();
+      return;
+    }
     await _stopAmbient();
     if (_bookMode) {
       await _tts.pause();
-      await _tts.setVolume(_baseVolume);
       await _persistBookProgress();
     } else {
       await _player.pause();
-      await _player.setVolume(_baseVolume);
       await _persistDemoPosition();
     }
+    await _applyLiveVolumes(fadeFactor: 1);
     _emit(
       _session.copyWith(
         state: PlayerState.paused,
         clearTimerEndsAt: true,
         clearTimerPreset: true,
         playUntilEnd: false,
+        timerMode: SleepTimerMode.countdown,
       ),
     );
     _refreshControls();
@@ -662,37 +834,102 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _onTtsProgress(int offset, bool completed) async {
     if (!_bookMode) return;
+    final stopAtBoundary = completed &&
+        (_session.timerMode == SleepTimerMode.afterChapter ||
+            _session.timerMode == SleepTimerMode.afterSegment) &&
+        _session.playUntilEnd;
+    final nextState = completed
+        ? PlayerState.completed
+        : (_tts.isPlaying || _ttsLoop
+            ? (_fading || _session.timerMode == SleepTimerMode.afterSegment
+                ? PlayerState.fadingOut
+                : PlayerState.playing)
+            : PlayerState.paused);
     _emit(
       _session.copyWith(
         position: _tts.estimatePosition(),
         duration: _tts.estimateDuration(),
-        state: completed
-            ? PlayerState.completed
-            : (_tts.isPlaying || _ttsLoop
-                  ? (_fading ? PlayerState.fadingOut : PlayerState.playing)
-                  : PlayerState.paused),
+        state: nextState,
+        scriptText: _scriptText,
+        chunks: _tts.chunks,
+        chunkStarts: _tts.chunkStarts,
+        currentChunkIndex: _tts.currentChunkIndex,
+        charOffset: offset,
+        playUntilEnd: completed ? false : _session.playUntilEnd,
+        timerMode: completed ? SleepTimerMode.countdown : _session.timerMode,
+        voiceVolume: _voiceVolume,
+        ambientVolume: _ambientVolume,
+        autoAdvanceChapters: _autoAdvanceChapters,
       ),
     );
     await _persistBookProgress();
     _broadcastTtsState(playing: !completed && (_tts.isPlaying || _ttsLoop));
-
     if (completed) {
-      if (_session.playUntilEnd) {
-        _emit(_session.copyWith(playUntilEnd: false, state: PlayerState.completed));
+      await _applyLiveVolumes(fadeFactor: 1);
+      if (stopAtBoundary) {
+        await _stopAmbient();
+        return;
       }
+      final canAdvance = _autoAdvanceChapters &&
+          _session.bookId != null &&
+          _session.chapterId != null;
+      if (canAdvance) {
+        // После выхода текущего TTS-цикла — следующая глава.
+        unawaited(Future<void>(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+          final advanced = await _tryPlayNextChapter();
+          if (!advanced) await _stopAmbient();
+        }));
+        return;
+      }
+      await _stopAmbient();
     }
+  }
+
+  Future<bool> _tryPlayNextChapter() async {
+    final bookId = _session.bookId;
+    final chapterId = _session.chapterId;
+    final params = _lastBookParams;
+    if (bookId == null || chapterId == null || params == null) return false;
+
+    final book = await booksRepository.getBook(bookId);
+    if (book == null || book.chapters.isEmpty) return false;
+    final index = book.chapters.indexWhere((c) => c.id == chapterId);
+    if (index < 0 || index + 1 >= book.chapters.length) return false;
+
+    final next = book.chapters[index + 1];
+    if (next.content.trim().isEmpty) return false;
+
+    await playBookChapter(
+      bookId: bookId,
+      chapterId: next.id,
+      bookTitle: book.title,
+      chapterTitle: next.title,
+      text: next.content,
+      startCharOffset: 0,
+      speechRate: params.speechRate,
+      pitch: params.pitch,
+      voiceId: params.voiceId,
+      preferCloud: params.preferCloud,
+      ttsApiKey: params.ttsApiKey,
+      ttsBaseUrl: params.ttsBaseUrl,
+      comfyUrl: params.comfyUrl,
+      cacheLimitGb: params.cacheLimitGb,
+    );
+    return true;
   }
 
   Future<void> _clearTimer() async {
     _ticker?.cancel();
     _fading = false;
-    await _player.setVolume(_baseVolume);
-    await _tts.setVolume(_baseVolume);
+    await _applyLiveVolumes(fadeFactor: 1);
+    _tts.clearStopAfterCurrentChunk();
     _emit(
       _session.copyWith(
         clearTimerEndsAt: true,
         clearTimerPreset: true,
         playUntilEnd: false,
+        timerMode: SleepTimerMode.countdown,
       ),
     );
     _refreshControls();
@@ -705,6 +942,14 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   Future<void> _persistBookProgress() async {
+    final mediaId = _session.currentEpisodeId;
+    if (mediaId != null && mediaId.startsWith('episode:')) {
+      await progressRepository.saveCharOffset(
+        mediaId: mediaId,
+        charOffset: _tts.charOffset,
+      );
+    }
+
     final bookId = _session.bookId;
     final chapterId = _session.chapterId;
     if (bookId == null || chapterId == null) return;
@@ -789,8 +1034,45 @@ class SleepingAudioHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> disposePlayer() async {
     _ticker?.cancel();
+    await _stopAmbient();
     await _tts.dispose();
     await _sessionController.close();
+    await _ambient.dispose();
     await _player.dispose();
+  }
+}
+
+class _BookTtsParams {
+  const _BookTtsParams({
+    required this.speechRate,
+    required this.pitch,
+    required this.voiceId,
+    required this.preferCloud,
+    this.ttsApiKey,
+    this.ttsBaseUrl,
+    this.comfyUrl,
+    required this.cacheLimitGb,
+  });
+
+  final double speechRate;
+  final double pitch;
+  final String voiceId;
+  final bool preferCloud;
+  final String? ttsApiKey;
+  final String? ttsBaseUrl;
+  final String? comfyUrl;
+  final int cacheLimitGb;
+
+  _BookTtsParams copyWith({String? voiceId}) {
+    return _BookTtsParams(
+      speechRate: speechRate,
+      pitch: pitch,
+      voiceId: voiceId ?? this.voiceId,
+      preferCloud: preferCloud,
+      ttsApiKey: ttsApiKey,
+      ttsBaseUrl: ttsBaseUrl,
+      comfyUrl: comfyUrl,
+      cacheLimitGb: cacheLimitGb,
+    );
   }
 }

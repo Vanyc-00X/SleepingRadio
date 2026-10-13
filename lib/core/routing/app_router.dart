@@ -9,6 +9,7 @@ import '../../features/news/news_screen.dart';
 import '../../features/player/now_playing_screen.dart';
 import '../../features/podcast/podcast_builder_screen.dart';
 import '../../features/settings/network_privacy_screen.dart';
+import '../../features/settings/news_feeds_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/shell/app_shell.dart';
 
@@ -89,6 +90,11 @@ GoRouter createAppRouter() {
         parentNavigatorKey: rootNavigatorKey,
         path: '/settings/privacy',
         builder: (context, state) => const NetworkPrivacyScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/settings/feeds',
+        builder: (context, state) => const NewsFeedsScreen(),
       ),
     ],
   );

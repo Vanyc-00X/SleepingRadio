@@ -11,8 +11,11 @@ import '../../data/repositories/listen_history_repository.dart';
 import '../../data/repositories/news_repository.dart';
 import '../../data/repositories/podcast_repository.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../data/news/news_feed_store.dart';
 import '../../data/settings/stage8_prefs.dart';
+import '../../data/settings/voice_presets.dart';
 import '../../data/tts/audio_cache_store.dart';
+import '../../data/repositories/playback_progress_repository.dart';
 import '../../data/tts/on_device_model_store.dart';
 import '../../data/tts/on_device_tts_engine.dart';
 import '../../data/tts/tts_api_key_store.dart';
@@ -36,6 +39,19 @@ final ttsApiKeyStoreProvider = Provider<TtsApiKeyStore>((ref) {
 
 final stage8PrefsProvider = Provider<Stage8Prefs>((ref) {
   return Stage8Prefs(ref.watch(sharedPreferencesProvider));
+});
+
+final voicePresetsStoreProvider = Provider<VoicePresetsStore>((ref) {
+  return VoicePresetsStore(ref.watch(sharedPreferencesProvider));
+});
+
+final newsFeedStoreProvider = Provider<NewsFeedStore>((ref) {
+  return NewsFeedStore(ref.watch(sharedPreferencesProvider));
+});
+
+final playbackProgressRepositoryProvider =
+    Provider<PlaybackProgressRepository>((ref) {
+  return PlaybackProgressRepository(ref.watch(sharedPreferencesProvider));
 });
 
 final localCommentServiceProvider = Provider<LocalCommentService>((ref) {
@@ -84,6 +100,7 @@ final newsRepositoryProvider = Provider<NewsRepository>((ref) {
   return NewsRepository(
     ref.watch(appDatabaseProvider),
     commentService: ref.watch(localCommentServiceProvider),
+    feedStore: ref.watch(newsFeedStoreProvider),
   );
 });
 

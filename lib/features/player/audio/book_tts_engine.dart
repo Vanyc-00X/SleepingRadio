@@ -32,13 +32,16 @@ class BookTtsEngine {
 
   List<String> _chunks = const [];
   List<int> _chunkStarts = const [];
+  String _fullText = '';
   int _index = 0;
   int _charOffset = 0;
   int _totalChars = 0;
   bool _playing = false;
   bool _ready = false;
+  bool _stopAfterCurrentChunk = false;
   double _speechRate = 1;
   double _pitch = 1;
+  int _interChunkPauseMs = 280;
   TtsVoice _voice = TtsVoices.calmFemale;
   bool _preferCloud = false;
   String? _apiKey;
@@ -50,8 +53,21 @@ class BookTtsEngine {
   bool get isPlaying => _playing;
   int get charOffset => _charOffset;
   int get totalChars => _totalChars;
+  int get currentChunkIndex => _index;
+  List<String> get chunks => _chunks;
+  List<int> get chunkStarts => _chunkStarts;
+  String get fullText => _fullText;
   NarrationMode get activeMode => _activeMode;
   TtsVoice get voice => _voice;
+  bool get stopAfterCurrentChunk => _stopAfterCurrentChunk;
+
+  void requestStopAfterCurrentChunk() {
+    _stopAfterCurrentChunk = true;
+  }
+
+  void clearStopAfterCurrentChunk() {
+    _stopAfterCurrentChunk = false;
+  }
 
   Future<void> ready() async {
     if (_ready) return;
@@ -90,11 +106,14 @@ class BookTtsEngine {
     String? baseUrl,
     String? comfyUrl,
     int cacheLimitGb = 2,
+    int interChunkPauseMs = 280,
   }) async {
     await ready();
     await stop();
     _speechRate = speechRate;
     _pitch = pitch;
+    _interChunkPauseMs = interChunkPauseMs.clamp(0, 2000);
+    _stopAfterCurrentChunk = false;
     _voice = TtsVoices.byId(voiceId);
     _preferCloud = preferCloud && !kIsWeb;
     _apiKey = apiKey;
@@ -103,6 +122,7 @@ class BookTtsEngine {
         ? ComfyLocalTtsClient.defaultBaseUrl
         : comfyUrl.trim();
     _cache.limitGb = cacheLimitGb;
+    _fullText = text;
     _totalChars = text.length;
     _chunks = TextCleaner.chunkForTts(text);
     _chunkStarts = _computeStarts(text, _chunks);
@@ -149,9 +169,26 @@ class BookTtsEngine {
       }
 
       if (!_playing) break;
+
+      if (_stopAfterCurrentChunk) {
+        _stopAfterCurrentChunk = false;
+        _index++;
+        if (_index < _chunks.length) {
+          _charOffset = _chunkStarts[_index];
+        } else {
+          _charOffset = _totalChars;
+        }
+        onProgress?.call(_charOffset, true);
+        break;
+      }
+
       _index++;
       if (_index < _chunks.length) {
         _charOffset = _chunkStarts[_index];
+        if (_interChunkPauseMs > 0) {
+          await Future<void>.delayed(Duration(milliseconds: _interChunkPauseMs));
+          if (!_playing) break;
+        }
       } else {
         _charOffset = _totalChars;
       }
@@ -281,6 +318,28 @@ class BookTtsEngine {
   Future<void> setPitch(double pitch) async {
     _pitch = pitch;
     await _applyVoiceSettings();
+  }
+
+  /// Меняет голос с текущего места. Не запускает play — это делает handler.
+  Future<void> switchVoice(String voiceId) async {
+    if (_voice.id == voiceId) return;
+    final offset = _charOffset;
+    await stop();
+    // Дать циклу play() увидеть _playing=false и выйти.
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    _voice = TtsVoices.byId(voiceId);
+    if (!kIsWeb && _voice.isOnDevice) {
+      _activeMode = NarrationMode.onDevice;
+    } else if (!kIsWeb && _voice.isLocalComfy) {
+      _activeMode = NarrationMode.localComfy;
+    } else {
+      final canCloud = _preferCloud && (_apiKey?.isNotEmpty ?? false);
+      _activeMode = canCloud ? NarrationMode.cloud : NarrationMode.system;
+    }
+    await _applyVoiceSettings();
+    _charOffset = offset.clamp(0, _totalChars);
+    _index = _indexForOffset(_charOffset);
+    onProgress?.call(_charOffset, false);
   }
 
   Future<void> setVolume(double volume) async {

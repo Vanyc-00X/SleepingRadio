@@ -3,11 +3,13 @@ import 'package:uuid/uuid.dart';
 
 import '../../domain/enums/comment_length.dart';
 import '../../domain/enums/episode_type.dart';
+import '../../domain/enums/news_language.dart';
 import '../../domain/enums/news_topic.dart';
 import '../../domain/models/episode.dart' as domain;
 import '../llm/local_comment_service.dart';
 import '../local/app_database.dart' as db;
 import '../news/news_episode_composer.dart';
+import '../news/news_feed_store.dart';
 import '../news/news_sources.dart';
 import '../news/rss_client.dart';
 import '../news/rss_models.dart';
@@ -17,11 +19,13 @@ class NewsRepository {
     this._db, {
     RssClient? rssClient,
     this._commentService,
+    this._feedStore,
   }) : _rss = rssClient ?? RssClient();
 
   final db.AppDatabase _db;
   final RssClient _rss;
   final LocalCommentService? _commentService;
+  final NewsFeedStore? _feedStore;
   final _uuid = const Uuid();
   final _composer = NewsEpisodeComposer();
 
@@ -46,21 +50,43 @@ class NewsRepository {
     return _mapEpisode(row);
   }
 
-  Future<List<RssItem>> fetchHeadlines(List<NewsTopic> topics) async {
-    final sources = NewsSources.forTopics(topics);
-    if (sources.isEmpty) {
-      throw RssFetchException('Выберите хотя бы одну тему новостей.');
+  Future<List<RssItem>> fetchHeadlines(
+    List<NewsTopic> topics, {
+    NewsLanguage? language,
+  }) async {
+    final store = _feedStore;
+    final lang = language ?? store?.language ?? NewsLanguage.ru;
+    final feeds = store?.activeForTopics(topics, language: lang) ??
+        NewsSources.forTopics(topics, language: lang)
+            .map(
+              (s) => NewsFeedEntry(
+                id: s.id,
+                label: s.label,
+                feedUrl: s.feedUrl,
+                topic: s.topic,
+                language: s.language,
+                priority: s.priority,
+              ),
+            )
+            .toList();
+    if (feeds.isEmpty) {
+      throw RssFetchException(
+        'Нет лент для выбранного языка и тем. '
+        'Добавьте RSS в Настройки → RSS-ленты или смените язык.',
+      );
     }
 
-    final collected = <RssItem>[];
+    final collected = <({RssItem item, int priority})>[];
     final errors = <String>[];
 
-    for (final source in sources) {
+    for (final feed in feeds) {
       try {
-        final feed = await _rss.fetch(source.feedUrl);
-        collected.addAll(feed.items.take(6));
+        final parsed = await _rss.fetch(feed.feedUrl);
+        for (final item in parsed.items.take(6)) {
+          collected.add((item: item, priority: feed.priority));
+        }
       } on RssFetchException catch (error) {
-        errors.add(error.message);
+        errors.add('${feed.label}: ${error.message}');
       }
     }
 
@@ -73,12 +99,14 @@ class NewsRepository {
     }
 
     collected.sort((a, b) {
-      final ad = a.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bd = b.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final byPriority = b.priority.compareTo(a.priority);
+      if (byPriority != 0) return byPriority;
+      final ad = a.item.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bd = b.item.publishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
       return bd.compareTo(ad);
     });
 
-    return _dedupe(collected).take(12).toList();
+    return _dedupe(collected.map((e) => e.item).toList()).take(12).toList();
   }
 
   Future<domain.Episode> buildEpisode({
@@ -86,8 +114,10 @@ class NewsRepository {
     required CommentLength commentLength,
     required bool factsOnly,
     List<RssItem>? prefetched,
+    NewsLanguage? language,
   }) async {
-    final items = prefetched ?? await fetchHeadlines(topics);
+    final items =
+        prefetched ?? await fetchHeadlines(topics, language: language);
     final factsBlob = items
         .take(6)
         .map((i) => '${i.title}. ${i.summary}')

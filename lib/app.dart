@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:home_widget/home_widget.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/di/providers.dart';
@@ -11,6 +12,7 @@ import 'core/share/share_intent_service.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'features/onboarding/onboarding_screen.dart';
+import 'features/player/player_controller.dart';
 
 class SleepingRadioApp extends ConsumerStatefulWidget {
   const SleepingRadioApp({super.key});
@@ -22,12 +24,16 @@ class SleepingRadioApp extends ConsumerStatefulWidget {
 class _SleepingRadioAppState extends ConsumerState<SleepingRadioApp> {
   GoRouter? _router;
   StreamSubscription<SharedPayload>? _shareSub;
+  StreamSubscription<Uri?>? _widgetSub;
   SharedPayload? _pendingShare;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initShare());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initShare());
+      unawaited(_initWidget());
+    });
   }
 
   Future<void> _initShare() async {
@@ -37,6 +43,23 @@ class _SleepingRadioAppState extends ConsumerState<SleepingRadioApp> {
     }
     await _shareSub?.cancel();
     _shareSub = shareIntentService.stream.listen(_openShared);
+  }
+
+  Future<void> _initWidget() async {
+    try {
+      final launched = await HomeWidget.initiallyLaunchedFromHomeWidget();
+      _handleWidgetUri(launched);
+      await _widgetSub?.cancel();
+      _widgetSub = HomeWidget.widgetClicked.listen(_handleWidgetUri);
+    } catch (_) {}
+  }
+
+  void _handleWidgetUri(Uri? uri) {
+    if (uri == null) return;
+    if (uri.host == 'widget' && uri.pathSegments.contains('toggle_play')) {
+      unawaited(ref.read(playerSessionProvider.notifier).toggle());
+      _router?.go('/player');
+    }
   }
 
   void _openShared(SharedPayload payload) {
@@ -66,6 +89,7 @@ class _SleepingRadioAppState extends ConsumerState<SleepingRadioApp> {
   @override
   void dispose() {
     _shareSub?.cancel();
+    _widgetSub?.cancel();
     super.dispose();
   }
 

@@ -8,6 +8,8 @@ class Stage8Prefs {
 
   static const _ambientEnabled = 's8_ambient_enabled';
   static const _ambientVolume = 's8_ambient_volume';
+  static const _voiceVolume = 's8_voice_volume';
+  static const _autoAdvanceChapters = 's8_auto_advance_chapters';
   static const _ollamaEnabled = 's8_ollama_enabled';
   static const _ollamaUrl = 's8_ollama_url';
   static const _ollamaModel = 's8_ollama_model';
@@ -15,19 +17,34 @@ class Stage8Prefs {
   static const defaultOllamaUrl = 'http://127.0.0.1:11434';
   static const defaultOllamaModel = 'llama3.2';
 
-  bool get ambientEnabled => _prefs.getBool(_ambientEnabled) ?? false;
+  bool get ambientEnabled => _prefs.getBool(_ambientEnabled) ?? true;
 
   Future<void> setAmbientEnabled(bool value) =>
       _prefs.setBool(_ambientEnabled, value);
 
-  /// Тихая подложка: 0.04–0.22.
+  /// Тихая подложка: 0–0.4.
   double get ambientVolume {
     final v = _prefs.getDouble(_ambientVolume) ?? 0.12;
-    return v.clamp(0.04, 0.22);
+    return v.clamp(0.0, 0.4);
   }
 
   Future<void> setAmbientVolume(double value) =>
-      _prefs.setDouble(_ambientVolume, value.clamp(0.04, 0.22));
+      _prefs.setDouble(_ambientVolume, value.clamp(0.0, 0.4));
+
+  /// Громкость голоса TTS: 0.15–1.0.
+  double get voiceVolume {
+    final v = _prefs.getDouble(_voiceVolume) ?? 1.0;
+    return v.clamp(0.15, 1.0);
+  }
+
+  Future<void> setVoiceVolume(double value) =>
+      _prefs.setDouble(_voiceVolume, value.clamp(0.15, 1.0));
+
+  bool get autoAdvanceChapters =>
+      _prefs.getBool(_autoAdvanceChapters) ?? true;
+
+  Future<void> setAutoAdvanceChapters(bool value) =>
+      _prefs.setBool(_autoAdvanceChapters, value);
 
   bool get ollamaEnabled => _prefs.getBool(_ollamaEnabled) ?? false;
 
@@ -67,6 +84,8 @@ class Stage8Prefs {
   Map<String, Object?> toJson() => {
     'ambientEnabled': ambientEnabled,
     'ambientVolume': ambientVolume,
+    'voiceVolume': voiceVolume,
+    'autoAdvanceChapters': autoAdvanceChapters,
     'ollamaEnabled': ollamaEnabled,
     'ollamaUrl': ollamaUrl,
     'ollamaModel': ollamaModel,
@@ -78,6 +97,12 @@ class Stage8Prefs {
     }
     if (json['ambientVolume'] is num) {
       await setAmbientVolume((json['ambientVolume'] as num).toDouble());
+    }
+    if (json['voiceVolume'] is num) {
+      await setVoiceVolume((json['voiceVolume'] as num).toDouble());
+    }
+    if (json['autoAdvanceChapters'] is bool) {
+      await setAutoAdvanceChapters(json['autoAdvanceChapters'] as bool);
     }
     if (json['ollamaEnabled'] is bool) {
       await setOllamaEnabled(json['ollamaEnabled'] as bool);

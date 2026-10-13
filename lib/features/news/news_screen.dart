@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../data/news/news_episode_composer.dart';
 import '../../data/news/rss_client.dart';
 import '../../data/news/rss_models.dart';
+import '../../domain/enums/news_language.dart';
 import '../../domain/enums/news_topic.dart';
 import '../player/player_controller.dart';
 
@@ -23,6 +24,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
   var _building = false;
   String? _error;
   List<RssItem> _headlines = const [];
+  NewsLanguage _language = NewsLanguage.ru;
   Set<NewsTopic> _topics = {
     NewsTopic.technology,
     NewsTopic.science,
@@ -36,8 +38,12 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
 
   Future<void> _bootstrapTopics() async {
     final settings = await ref.read(settingsProvider.future);
+    final language = ref.read(newsFeedStoreProvider).language;
     if (!mounted) return;
-    setState(() => _topics = settings.newsTopics.toSet());
+    setState(() {
+      _topics = settings.newsTopics.toSet();
+      _language = language;
+    });
     await _refreshFeed();
   }
 
@@ -53,6 +59,32 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.mist,
             ),
+          ),
+          const SizedBox(height: 16),
+          Text('Язык новостей', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: NewsLanguage.values.map((lang) {
+              final selected = _language == lang;
+              return ChoiceChip(
+                label: Text('${lang.shortLabel} · ${lang.labelRu}'),
+                selected: selected,
+                selectedColor: AppColors.amber.withValues(alpha: 0.25),
+                labelStyle: TextStyle(
+                  color: selected ? AppColors.amber : AppColors.moon,
+                ),
+                onSelected: (_) async {
+                  setState(() {
+                    _language = lang;
+                    _headlines = const [];
+                  });
+                  await ref.read(newsFeedStoreProvider).setLanguage(lang);
+                  await _refreshFeed();
+                },
+              );
+            }).toList(),
           ),
           const SizedBox(height: 16),
           Text('Темы', style: Theme.of(context).textTheme.titleSmall),
@@ -168,9 +200,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
       await ref.read(settingsProvider.notifier).updateSettings(
         (s) => s.copyWith(newsTopics: _topics.toList()),
       );
-      final items = await ref
-          .read(newsRepositoryProvider)
-          .fetchHeadlines(_topics.toList());
+      final items = await ref.read(newsRepositoryProvider).fetchHeadlines(
+            _topics.toList(),
+            language: _language,
+          );
       if (!mounted) return;
       setState(() => _headlines = items);
     } on RssFetchException catch (error) {
@@ -195,11 +228,12 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
         (s) => s.copyWith(newsTopics: _topics.toList()),
       );
       final episode = await ref.read(newsRepositoryProvider).buildEpisode(
-        topics: _topics.toList(),
-        commentLength: settings.commentLength,
-        factsOnly: _factsOnly,
-        prefetched: _headlines,
-      );
+            topics: _topics.toList(),
+            commentLength: settings.commentLength,
+            factsOnly: _factsOnly,
+            prefetched: _headlines,
+            language: _language,
+          );
 
       final script = episode.script?.trim() ?? '';
       if (script.isEmpty) {

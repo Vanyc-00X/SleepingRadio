@@ -3,14 +3,14 @@ import '../enums/news_topic.dart';
 
 class UserSettings {
   const UserSettings({
-    this.voiceId = 'calm_female_ru',
+    this.voiceId = 'piper_denis',
     this.speechRate = 1.0,
     this.pitch = 1.0,
     this.commentLength = CommentLength.short,
     this.defaultTimerMinutes = 30,
     this.cacheLimitGb = 2,
     this.newsTopics = const [NewsTopic.technology, NewsTopic.science],
-    this.useCloudAi = true,
+    this.useCloudAi = false,
     this.onboardingCompleted = false,
     this.booksReadOnly = true,
   });
